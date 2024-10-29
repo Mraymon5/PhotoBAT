@@ -326,7 +326,7 @@ class TriggerCaptureFunctions():
         if verbose: print('Setup Complete')
 
     def startBuffer(self):
-        print("Starting rolling buffer...")
+        print("Camera: Starting rolling buffer...")
         self.buffer.clear()  # Resets self.buffer to an empty list
         self.stop_buffer.clear()
         self.buffer_thread = threading.Thread(target=self._bufferLoop)
