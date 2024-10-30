@@ -194,6 +194,7 @@ else:
     # Compute and Convert Session Variables
     NTrials = len(tastes)*trials_per_taste
     LickTime = [max_lick_time]*NTrials
+    LickCount = [None]*NTrials
     TubeSeq = trial_list
     IPITimes = list(np.append(initial_wait,([iti]*(NTrials-1)))) #Make a list of IPIs with initial_wait as the first
     MaxWaitTime = [max_trial_time]*NTrials
@@ -236,7 +237,8 @@ outWait = f'Max Wait for first Lick is, {MaxWaitTime[0]}\n'
 outRetries = 'Max Retries / Presentation, 0\n'
 outNumPres = f'Max Number Presentations, {NTrials}\n'
 outHeadings = 'PRESENTATION,TUBE,CONCENTRATION,SOLUTION,IPI,LENGTH,LICKS,Latency,Retries\n\n'
-outLickTime = f'Lick Times are, {LickTime}\n'
+outLickTime = f'Lick time limits are, {LickTime}\n'
+outLickCount = f'Lick count limits are, {LickCount}\n'
 outIPI = f'IPIs are, {IPITimes}\n'
 zeroTime = time.time()
 
@@ -337,7 +339,7 @@ if args.Camera == 'True':
     
 #%% Finish initializing the session
 #Report Parameters
-print(outID + outFile + '\n' + outWait + outNumPres + outLickTime + outIPI)
+print(outID + outFile + '\n' + outWait + outNumPres + outLickTime + outLickCount + outIPI)
 print([f'Spout {taste_positions[i]}: {tastes[i]}' for i in range(len(tastes))])
 print('Taste Sequence: {}'.format(TubeSeq))
 
@@ -381,7 +383,7 @@ try:
         
         # on-screen reminder
         print("\n")
-        print("Trial {}_spout{} in Progress~".format(trialN, spoutN))
+        print("Trial {}_spout{} in Progress. Max lick time = {}, Max lick count = {}".format(trialN, spoutN, LickTime[trialN], LickCount[trialN]))
         
         # empty list to save licks for each trial
         this_spout = 'Position {}'.format(spoutN)
@@ -411,7 +413,7 @@ try:
     
         # detecting the current status of touch sensor
         last_poke = nosepokeIR.value # return status (touched or not) for each pin as a tuple
-        print(last_poke)
+        print("Beam is clear") if last_poke else print ("Beam is blocked")
         while not last_poke: # stay here if beam broken
             last_poke = nosepokeIR.value # make sure nose-poke is not blocked when starting
             
