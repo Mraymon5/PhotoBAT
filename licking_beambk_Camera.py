@@ -527,10 +527,15 @@ try:
         # print out number of licks being made on this trial
         print('{} licks on Trial {}'.format(NLicks, trialN))
         print('\n=====  Inter-Trial Interval =====\n')
-        
-
+    
+    #Note a clean run
+    cleanRun = True
+    
 #%% Ending the session
 finally:
+    if not cleanRun:
+        print("Session interrupted")
+        
     # turn off LEDs and Intan outs
     led.white_off()
     led.red_off()
