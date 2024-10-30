@@ -376,7 +376,7 @@ class TriggerCaptureFunctions():
                     #out.write(frame)
                 else:
                     print("Camera: No Frame")
-                    time.sleep(1)
+                    #time.sleep(1)
                         
             #Save frames and release VideoWriter when done
             timeStamps = np.array([])
@@ -394,11 +394,10 @@ class TriggerCaptureFunctions():
     def cleanup(self):
         if not self.stop_buffer.is_set():
             self.stop_buffer.set()  # Stop the buffer loop
+        self.cap.release()
         # Clear frames from the internal buffer
         while self.cap.grab():
             pass
-        self.cap.release()
-
 
 #%% Function call for running the script from Terminal
 if __name__ == "__main__":
