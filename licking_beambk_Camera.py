@@ -30,10 +30,10 @@ from rgbled_class import RGBLed
 from turn_motor import *
 
 import CameraControl
-
 #%% Setup Session Parameters
 
-#TODO: Add in a option to set max licks per trial instead of max time
+#TODO: Add in a option to set max licks per trial instead of max time, DONE, untested
+#TODO: I think the max licks may break compatibility with the camera trigger in some circumstances
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = 'Script for running a BAT session with photobeam lickometer')
@@ -59,6 +59,12 @@ else:
     
 #print(proj_path)
 
+# Helper function to read in values from params file and save them as int or None
+def intOrNone(value, factor=1):
+    try:
+        return int(value)*factor # If the value in a givin position is a numeral, convert to int
+    except (ValueError, TypeError): # Otherwise return None
+        return None
 
 # Setup trial parameters
 #ParamsFile = '/home/ramartin/Documents/Forms/TrialParamsTemplate.txt'
@@ -72,8 +78,16 @@ if ParamsFile is not None:
     NTrials = int([line[1] for line in paramsData if 'NumberOfPres' in line[0]][0])
     Solutions = [line[1].split(',') for line in paramsData if 'Solutions' in line[0]][0]
     Concentrations = [line[1].split(',') for line in paramsData if 'Concentrations' in line[0]][0]
-    LickTime = [line[1].split(',') for line in paramsData if 'LickTime' in line[0]][0]
-    LickTime = [int(trialN)/1000 for trialN in LickTime]
+    try:
+        LickTime = [line[1].split(',') for line in paramsData if 'LickTime' in line[0]][0]
+    except:
+        LickTime = list([None])
+    LickTime = [intOrNone(trialN, factor=(1/1000)) for trialN in LickTime]
+    try:
+        LickCount = [line[1].split(',') for line in paramsData if 'LickCount' in line[0]][0]
+    except:
+        LickCount = list([None])
+    LickCount = [intOrNone(trialN) for trialN in LickCount]
     TubeSeq = [line[1].split(',') for line in paramsData if 'TubeSeq' in line[0]][0]
     TubeSeq = [int(trialN) for trialN in TubeSeq]
     IPITimes = [line[1].split(',') for line in paramsData if 'IPITimes' in line[0]][0]
@@ -101,6 +115,13 @@ if ParamsFile is not None:
     if len(LickTime) > NTrials:
         LickTime = LickTime[:NTrials]
         licktimeMsg = '-More trial durations given than NTrials; trimming excess\n'
+    #Set Lick Count List
+    if len(LickCount) < NTrials:
+        LickCount = (LickCount * -(-NTrials//len(LickCount)))[:NTrials]
+        lickcountMsg = '-Fewer trial durations given than NTrials; recycling positions\n'
+    if len(LickCount) > NTrials:
+        LickCount = LickCount[:NTrials]
+        lickcountMsg = '-More trial durations given than NTrials; trimming excess\n'
     #Set Trial List
     if len(TubeSeq) < NTrials:
         TubeSeq = (TubeSeq * -(-NTrials//len(TubeSeq)))[:NTrials]
@@ -127,6 +148,11 @@ if ParamsFile is not None:
         waitMsg = '-More wait limits given than NTrials; trimming excess\n'
     
     print(trialMsg + licktimeMsg + IPIMsg + waitMsg)
+    
+    if any(LickTime[trialN] is None and LickCount[trialN] is None for trialN in range(NTrials)):
+        raise Exception("Both LickTime and LickCount are None for some trials")
+        
+    
 else:
     params = easygui.multenterbox('Please enter parameters for this experiment!',
                               'Experiment Parameters',
@@ -149,14 +175,14 @@ else:
     trials_per_taste = int(params[2])
     #print(params)
     
-    # get tastes and their spout locations
+    # Get tastes and their spout locations
     bot_pos = ['water2', '', '', '']
     t_list = easygui.multenterbox('Please enter what taste to be used in each Valve.',
                                   'Taste List',
                                   ['Spout {}'.format(i) for i in ['2, Yellow','4, Blue','6, Green','8, Red']],
                                   values=bot_pos)
         
-    # setting up spouts for each trial
+    # Setting up spouts for each trial
     tastes = [i for i in t_list if len(i) > 0]
     taste_positions = [2*int(i+1) for i in range(len(t_list)) if len(t_list[i]) > 0]
     
@@ -165,7 +191,7 @@ else:
     trial_list = [np.random.choice(taste_positions, size = len(tastes), replace=False) for i in range(trials_per_taste)]
     trial_list = np.concatenate(trial_list)
 
-    #Compute and Convert Session Variables
+    # Compute and Convert Session Variables
     NTrials = len(tastes)*trials_per_taste
     LickTime = [max_lick_time]*NTrials
     TubeSeq = trial_list
@@ -220,17 +246,17 @@ with open(outFile, 'r') as outputFile:
     outputData = outputFile.readlines()
 skipLines = len(outputData)-1 #how many lines to skip when writing to outputDat
 
-#Save Trial Start time
+# Save Trial Start time
 timeFile = os.path.join(dat_folder, f'{subjID}_trial_start.txt')
 with open(timeFile, "w") as timeKeeper:
     timeKeeper.write('')
 
-#Get the longest character width provided to stimulus and concentration
+# Get the longest character width provided to stimulus and concentration
 padStim = max([len(str(stimN)) for stimN in tastes]) + 1
 padConc = max([len(str(stimN)) for stimN in concs]) + 1
 padLat = len(str(round(max(MaxWaitTime)*1000))) + 1
 
-if 0: #This is strickly for testing outputs and should be disabled or removed for actual sessions
+if 0: # This is strictly for testing outputs and should be disabled or removed for actual sessions
     for trialN, spoutN in enumerate(TubeSeq): #trialN was index, spoutN was trial #spoutN = 2; trialN = 1
         # Write Trial Data to Output File
         taste_idx = int((spoutN - 2) / 2)
@@ -398,8 +424,9 @@ try:
         #Start the camera
         if args.Camera == 'True': camera.startBuffer()
 
-        while (time.time() - trial_init_time < trialTimeLimit) and \
-              (time.time() - exp_init_time < SessionTimeLimit):
+        while ((time.time() - trial_init_time < trialTimeLimit) if LickTime[trialN] is not None else True) and \
+              (time.time() - exp_init_time < SessionTimeLimit) and \
+              (len(licks[this_spout][this_trial_num]) < LickCount[trialN] if LickCount[trialN] is not None else True):
             current_poke = nosepokeIR.value
             
             # First check if transitioned from not poke to poke.
@@ -416,10 +443,9 @@ try:
                     licks[this_spout][this_trial_num].append(round((beam_break-last_break)*1000))
                     if len(licks[this_spout][this_trial_num]) == 1:
                         trial_init_time = beam_break #if lick happens, reset the trial_init time
-                        trialTimeLimit = LickTime[trialN] #If a lick happens, reset the trial time limit to maximal lick time
-                        if args.Camera == 'True': camera.saveBufferAndCapture(duration=trialTimeLimit, start_time = trial_init_time, title=f'{subjID}_trial{trialN}', outputFolder=dat_folder)
+                        trialTimeLimit = LickTime[trialN] if LickTime[trialN] is not None else 6000 #If a lick happens, reset the trial time limit to maximal lick time
+                        if args.Camera == 'True': camera.saveBufferAndCapture(duration=trialTimeLimit, title=f'{subjID}_trial{trialN}', outputFolder=dat_folder, start_time = trial_init_time)
                     last_break = beam_break
-                    
                     print('Beam Broken! -- Lick_{}'.format(len(licks[this_spout][-1])))
     
             # Update last state and wait a short period before repeating.
