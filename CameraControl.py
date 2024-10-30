@@ -351,7 +351,8 @@ class TriggerCaptureFunctions():
         # Wait for the buffer thread to finish
         if self.buffer_thread.is_alive():
             self.buffer_thread.join()
-    
+        self.stop_buffer.clear()
+
         # Create a VideoWriter object to save the buffer + additional capture
         fourcc = cv2.VideoWriter_fourcc(*'MJPG') 
         outputFile = f'{outputFolder}/{title}.avi'
@@ -363,31 +364,32 @@ class TriggerCaptureFunctions():
     
         # Now define a function to continue capturing additional frames
         def capture_additional_frames():
-            nonlocal start_time
-            if not self.cap.isOpened():
-                print("Camera: Capture object was released or closed unexpectedly.")
-            if start_time is None: start_time = time.time()
-            while int((time.time() - start_time)) < duration:
-                ret, frame = self.cap.read()
-                if ret:
-                    self.buffer.append((frame, time.time()))
-                    #out.write(frame)
-                else:
-                    print("Camera: No Frame")
-                    time.sleep(1)
-                    
-            #Save frames and release VideoWriter when done
-            timeStamps = np.array([])
-            for frame, stamp in self.buffer:
-                out.write(frame)
-                timeStamps = np.append(timeStamps, stamp)
-            out.release()
-            np.savetxt(f'{outputFolder}/{title}Timestamps.csv', (timeStamps-start_time)*1000)
-            print(f"Camera: Recording complete, video saved as {outputFile}.")
-
-            # Clear frames from the internal buffer
-            while self.cap.grab():
-                pass
+            while not self.stop_buffer.is_set():
+                nonlocal start_time
+                if not self.cap.isOpened():
+                    print("Camera: Capture object was released or closed unexpectedly.")
+                if start_time is None: start_time = time.time()
+                while int((time.time() - start_time)) < duration:
+                    ret, frame = self.cap.read()
+                    if ret:
+                        self.buffer.append((frame, time.time()))
+                        #out.write(frame)
+                    else:
+                        print("Camera: No Frame")
+                        time.sleep(1)
+                        
+                #Save frames and release VideoWriter when done
+                timeStamps = np.array([])
+                for frame, stamp in self.buffer:
+                    out.write(frame)
+                    timeStamps = np.append(timeStamps, stamp)
+                out.release()
+                np.savetxt(f'{outputFolder}/{title}Timestamps.csv', (timeStamps-start_time)*1000)
+                print(f"Camera: Recording complete, video saved as {outputFile}.")
+    
+                # Clear frames from the internal buffer
+                while self.cap.grab():
+                    pass
 
         # Start saving additional frames in a new thread
         self.save_thread = threading.Thread(target=capture_additional_frames)
