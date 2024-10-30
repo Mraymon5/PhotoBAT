@@ -296,11 +296,11 @@ led = RGBLed(red_pin, green_pin, blue_pin)
 np_led = digitalio.DigitalInOut(board.D21)
 np_led.direction = digitalio.Direction.OUTPUT
 
-# setup intaninput for touch sensor
-#touchIntanIn = digitalio.DigitalInOut(board.D17)
-#touchIntanIn.direction = digitalio.Direction.OUTPUT
+# setup intaninput for beam sensor
+beamIntanIn = digitalio.DigitalInOut(board.D5)
+beamIntanIn.direction = digitalio.Direction.OUTPUT
 
-# setup intaninput for touch sensor
+# setup intaninput for trial signal
 cueIntanIn = digitalio.DigitalInOut(board.D27)
 cueIntanIn.direction = digitalio.Direction.OUTPUT
 
@@ -504,6 +504,8 @@ try:
         
         # Turn off nosepoke detection
         NP_process.terminate()
+        beamIntanIn.value = False
+        
         # Reset the Camera
         if args.Camera == 'True':
             camera.cleanup()
@@ -546,7 +548,8 @@ finally:
     led.green_off()
     np_led.value = False
     cueIntanIn.value = False
-    spoutsIntanIn[spoutN].value = False 
+    spoutsIntanIn[spoutN].value = False
+    beamIntanIn.value = False
     
     # Return spout to home. This won't work if session is aborted while moving motor
     # create Motor instance
