@@ -28,12 +28,13 @@ from bipolar_class import Motor
 from bipolar_class import rotate_dir
 from rgbled_class import RGBLed
 from turn_motor import *
-
 import CameraControl
+
 #%% Setup Session Parameters
 
 #TODO: Add in a option to set max licks per trial instead of max time, DONE, untested
-#TODO: I think the max licks may break compatibility with the camera trigger in some circumstances
+#TODO: I think the max licks may break compatibility with the camera trigger in some circumstances, FIXED Untested
+#TODO: The intan cue gets pulled HIGH and can stay that way
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = 'Script for running a BAT session with photobeam lickometer')
@@ -277,14 +278,14 @@ if 0: # This is strictly for testing outputs and should be disabled or removed f
 #%% Setup Hardware
 
 # setup motor [40 pin header for newer Raspberry Pi's]
-step = 24
-direction = 23
+step = 24       # Pin assigned to motor controller steps
+direction = 23  # Pin assigned to motor controller direction
 enable = 25     # Not required - leave unconnected
 ms1 = 18
 ms2 = 15
 ms3 = 14
-he_pin = 16 # Hall effect pin
-cur_pos = 1
+he_pin = 16     # Hall effect pin
+cur_pos = 1     # Initial position of table should be 1
 dest_pos = TubeSeq[0]
 
 # set up RGB LEDs
@@ -321,6 +322,7 @@ sp8IntanIn = digitalio.DigitalInOut(board.D10)
 sp8IntanIn.direction = digitalio.Direction.OUTPUT
 
 spoutsIntanIn = {2:sp2IntanIn, 4:sp4IntanIn, 6:sp6IntanIn, 8:sp8IntanIn}
+#TODO: d5 on the pi goes to port 11 on the intan, and doesn't seem to be controlled here
 
 # setup nose poke beam break detection
 nosepokeIR = digitalio.DigitalInOut(board.D6)
@@ -355,6 +357,7 @@ startIPI = exp_init_time
 if args.LED == 'True' or args.LED == 'Cue': led.white_on()
 
 #%% Open the trial loop
+cleanRun = False
 try:
     for trialN, spoutN in enumerate(TubeSeq): #trialN was index, spoutN was trial #spoutN = 2; trialN = 1
         #Set index for identifying stimuli
@@ -501,12 +504,11 @@ try:
         
         # Turn off nosepoke detection
         NP_process.terminate()
-        
         # Reset the Camera
         if args.Camera == 'True':
             camera.cleanup()
             camera.setupCapture(mode = camMode, autoExposure = False, exposure = exposure, gain = gain, buffer_duration = buffer_duration)
-
+            
         #Write the outputs
         #Save Trial Start time
         with open(timeFile, 'a') as timeKeeper:
