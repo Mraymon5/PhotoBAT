@@ -34,7 +34,7 @@ import CameraControl
 
 #TODO: Add in a option to set max licks per trial instead of max time, DONE, untested
 #TODO: I think the max licks may break compatibility with the camera trigger in some circumstances, FIXED Untested
-#TODO: The intan cue gets pulled HIGH and can stay that way
+#TODO: Make the Gui more friendly
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = 'Script for running a BAT session with photobeam lickometer')
@@ -45,12 +45,11 @@ if __name__ == "__main__":
     parser.add_argument('--Camera', '-c', help = 'Record with the behavior camera (True/[False])', default = 'False')
     args = parser.parse_args()
  
-if args.ParamsFile is None:
-    ParamsFile = easygui.fileopenbox("Select a params file, or cancel for manual entry")
-
 date = time.strftime("%Y%m%d")
 subjID = args.subjID
 ParamsFile = args.ParamsFile
+useLED = args.LED
+useCamera = args.Camera
 #print(args.subjID)
 
 if args.OutputFolder is not None:
@@ -58,6 +57,15 @@ if args.OutputFolder is not None:
 else:
     proj_path = os.getcwd() #'/home/rig337-testpi/Desktop/katz_lickometer'
     
+if os.path.isdir(os.path.join(proj_path, 'params')):
+    paramsFolder = os.path.join(proj_path, 'params/*')
+else:
+    paramsFolder = os.path.join(proj_path, '/*')
+
+    
+if args.ParamsFile is None:
+    ParamsFile = easygui.fileopenbox(msg="Select a params file, or cancel for manual entry", default=paramsFolder)
+
 #print(proj_path)
 
 # Helper function to read in values from params file and save them as int or None
@@ -67,6 +75,9 @@ def intOrNone(value, factor=1):
     except (ValueError, TypeError): # Otherwise return None
         return None
 
+# Helper function to allow flexible inputs for True in user-supplied strings
+isTrue = lambda x: str(str(x).lower() in {'1', 'true', 't'})
+
 # Setup trial parameters
 #ParamsFile = '/home/ramartin/Documents/Forms/TrialParamsTemplate.txt'
 if ParamsFile is not None:
@@ -75,7 +86,7 @@ if ParamsFile is not None:
     paramsData = [line.rstrip('\n') for line in paramsData]
     paramsData = [line.split('#')[0] for line in paramsData]
     paramsData = [line.split('=') for line in paramsData]
-
+    
     NTrials = int([line[1] for line in paramsData if 'NumberOfPres' in line[0]][0])
     Solutions = [line[1].split(',') for line in paramsData if 'Solutions' in line[0]][0]
     Concentrations = [line[1].split(',') for line in paramsData if 'Concentrations' in line[0]][0]
@@ -98,11 +109,13 @@ if ParamsFile is not None:
     MaxWaitTime = [line[1].split(',') for line in paramsData if 'MaxWaitTime' in line[0]][0]
     MaxWaitTime = [int(trialN)/1000 for trialN in MaxWaitTime]
     SessionTimeLimit = int([line[1] for line in paramsData if 'SessionTimeLimit' in line[0]][0])/1000
-
+    useLED = [line[1] for line in paramsData if 'UseLED' in line[0]][0]
+    useCamera = [line[1] for line in paramsData if 'UseCamera' in line[0]][0]
+    
     tastes = [stimN for stimN in Solutions if len(stimN) > 0]
     taste_positions = [2*int(stimN+1) for stimN in range(len(Solutions)) if len(Solutions[stimN]) > 0]
     concs = [stimN for stimN in Concentrations if len(stimN) > 0]
-        
+    
     #Setup Messages
     trialMsg = '\n'
     IPIMsg = '\n'
@@ -152,56 +165,67 @@ if ParamsFile is not None:
     
     if any(LickTime[trialN] is None and LickCount[trialN] is None for trialN in range(NTrials)):
         raise Exception("Both LickTime and LickCount are None for some trials")
-        
-    
 else:
     params = easygui.multenterbox('Please enter parameters for this experiment!',
                               'Experiment Parameters',
-                              ['0: Wait time before first trial to be delivered (30s)',
-                               '1: Maximal wait time per trial (60s)',
-                               '2: Number of trials per taste (10)',
-                               '3: Enter inter-trial interval (30s)',
-                               '4: Maxiumum duration of session in minutes (90min)',
-                               '5: Maximal Lick time per trial (10s)',
-                               '6: Video Recording time (15s)'
+                              ['0: Animal ID',
+                               '1: Wait time before first trial to be delivered (30s)',
+                               '2: Maximal wait time per trial (60s)',
+                               '3: Number of trials per taste (10)',
+                               '4: Enter inter-trial interval (30s)',
+                               '5: Maxiumum duration of session in minutes (90min)',
+                               '6: Maximum lick time per trial (10s)',
+                               '7: Maximum lick count per trial (None)',
+                               '8: Use LED indicators?',
+                               '9: Use behavior camera?'
                               ],
-                              [30,60,10,30,90,10,15])
-
+                              [subjID,30,60,10,30,90,10,None,False,False])
+    
     #Read params
-    initial_wait = int(params[0]) #30, initial_wait
-    max_trial_time = int(params[1]) #60, max_trial_time
-    iti = int(params[3]) #30, iti
-    exp_dur = float(params[4]) * 60 #90, turn into seconds, exp_dur
-    max_lick_time = int(params[5]) #10, max_lick_time
-    trials_per_taste = int(params[2])
-    #print(params)
+    subjID = params[0]
+    initial_wait = int(params[1]) #30, initial_wait
+    max_trial_time = int(params[2]) #60, max_trial_time
+    trials_per_taste = int(params[3]) #10
+    iti = int(params[4]) #30, iti
+    exp_dur = float(params[5]) * 60 #90, turn into seconds, exp_dur
+    max_lick_time = int(params[6]) if params[6] != '' else None #10, max_lick_time
+    max_lick_count = int(params[7]) if params[7] != '' else None #100
+    useLED = params[8] #0
+    useCamera = params[9] #0
     
     # Get tastes and their spout locations
-    bot_pos = ['water2', '', '', '']
-    t_list = easygui.multenterbox('Please enter what taste to be used in each Valve.',
+    bot_pos = ['Water', '', '', '']
+    t_list = easygui.multenterbox('Please enter the taste to be used in each spout.',
                                   'Taste List',
                                   ['Spout {}'.format(i) for i in ['2, Yellow','4, Blue','6, Green','8, Red']],
                                   values=bot_pos)
-        
+    
     # Setting up spouts for each trial
     tastes = [i for i in t_list if len(i) > 0]
     taste_positions = [2*int(i+1) for i in range(len(t_list)) if len(t_list[i]) > 0]
     
-    concs = ['']*len(tastes)
+    concs = easygui.multenterbox('Please enter the concentration of each taste.',
+                                  'Concentration List',
+                                  tastes,
+                                  values=[None]*len(tastes))
     
     trial_list = [np.random.choice(taste_positions, size = len(tastes), replace=False) for i in range(trials_per_taste)]
     trial_list = np.concatenate(trial_list)
-
+    
     # Compute and Convert Session Variables
     NTrials = len(tastes)*trials_per_taste
     LickTime = [max_lick_time]*NTrials
-    LickCount = [None]*NTrials
+    LickCount = [max_lick_count]*NTrials
     TubeSeq = trial_list
     IPITimes = list(np.append(initial_wait,([iti]*(NTrials-1)))) #Make a list of IPIs with initial_wait as the first
     MaxWaitTime = [max_trial_time]*NTrials
     SessionTimeLimit = exp_dur
+    
+# Adjust to flexible inputs for LED and Camera
+useLED = isTrue(useLED)
+useCamera = isTrue(useCamera)
 
-# make empty list to save lick data
+# Make empty list to save lick data
 spout_locs = ['Position {}'.format(i) for i in taste_positions]
 licks = {spout:[] for spout in spout_locs}
 
@@ -228,7 +252,7 @@ print(dat_folder)
 
 #%% Setup the output files
 outFile = os.path.join(dat_folder, "{}{}.txt".format(date,subjID))
-outVersion = 'Version #, 2000\n'    
+outVersion = 'Version #, 5.90\n'    
 outSysID = 'System ID, 1\n'
 outDate = f'Start Date, {time.strftime("%Y/%m/%d")}\n'
 outTime = f"Start Time, {datetime.now().strftime('%H:%M:%S.%f')[:-3]}\n"
@@ -241,6 +265,8 @@ outHeadings = 'PRESENTATION,TUBE,CONCENTRATION,SOLUTION,IPI,LENGTH,LICKS,Latency
 outLickTime = f'Lick time limits are, {LickTime}\n'
 outLickCount = f'Lick count limits are, {LickCount}\n'
 outIPI = f'IPIs are, {IPITimes}\n'
+outLED = f'Use LEDs, {useLED}\n'
+outCamera = f'Use Camera, {useCamera}\n'
 zeroTime = time.time()
 
 with open(outFile, 'w') as outputFile:
@@ -322,7 +348,6 @@ sp8IntanIn = digitalio.DigitalInOut(board.D10)
 sp8IntanIn.direction = digitalio.Direction.OUTPUT
 
 spoutsIntanIn = {2:sp2IntanIn, 4:sp4IntanIn, 6:sp6IntanIn, 8:sp8IntanIn}
-#TODO: d5 on the pi goes to port 11 on the intan, and doesn't seem to be controlled here
 
 # setup nose poke beam break detection
 nosepokeIR = digitalio.DigitalInOut(board.D6)
@@ -330,7 +355,7 @@ nosepokeIR.direction = digitalio.Direction.INPUT
 nosepokeIR.pull = digitalio.Pull.UP
 
 # Setup Camera: test settings with CamerControl.preview
-if args.Camera == 'True':
+if useCamera == 'True':
     #CameraControl.preview(mode=2)
     camMode = 2
     exposure = 63
@@ -341,7 +366,7 @@ if args.Camera == 'True':
     
 #%% Finish initializing the session
 #Report Parameters
-print(outID + outFile + '\n' + outWait + outNumPres + outLickTime + outLickCount + outIPI)
+print(outID + outFile + '\n' + outWait + outNumPres + outLickTime + outLickCount + outIPI + outLED + outCamera)
 print([f'Spout {taste_positions[i]}: {tastes[i]}' for i in range(len(tastes))])
 print('Taste Sequence: {}'.format(TubeSeq))
 
@@ -354,7 +379,7 @@ exp_init_time = time.time()
 startIPI = exp_init_time
 
 # Turn on white LED to set up the start of experiment
-if args.LED == 'True' or args.LED == 'Cue': led.white_on()
+if useLED == 'True' or useLED == 'Cue': led.white_on()
 
 #%% Open the trial loop
 cleanRun = False
@@ -371,7 +396,7 @@ try:
         time.sleep(IPITimes[trialN] - (startIPI - time.time()))
     
         # turn on nose poke LED cue and send signal to intan
-        if args.LED == 'Cue':
+        if useLED == 'Cue':
             # turn_off house white led light
             led.white_off()
             led.green_on() #Turn on the cue light
@@ -427,7 +452,7 @@ try:
         trialTimeLimit = MaxWaitTime[trialN] #Initially set the trial time limit to the max wait for this trial
         print('Start detecting licks/nosepokes')
         #Start the camera
-        if args.Camera == 'True': camera.startBuffer()
+        if useCamera == 'True': camera.startBuffer()
 
         while ((time.time() - trial_init_time < trialTimeLimit) if LickTime[trialN] is not None else True) and \
               (time.time() - exp_init_time < SessionTimeLimit) and \
@@ -449,7 +474,7 @@ try:
                     if len(licks[this_spout][this_trial_num]) == 1:
                         trial_init_time = beam_break #if lick happens, reset the trial_init time
                         trialTimeLimit = LickTime[trialN] if LickTime[trialN] is not None else 6000 #If a lick happens, reset the trial time limit to maximal lick time
-                        if args.Camera == 'True': camera.saveBufferAndCapture(duration=trialTimeLimit, title=f'{subjID}_trial{trialN}', outputFolder=dat_folder, start_time = trial_init_time)
+                        if useCamera == 'True': camera.saveBufferAndCapture(duration=trialTimeLimit, title=f'{subjID}_trial{trialN}', outputFolder=dat_folder, start_time = trial_init_time)
                     last_break = beam_break
                     print('Beam Broken! -- Lick_{}'.format(len(licks[this_spout][-1])))
     
@@ -489,7 +514,7 @@ try:
         motora.reset()
         
         # Update LEDs and Intan outs
-        if args.LED == 'Cue':
+        if useLED == 'Cue':
             # Code for differential cue lights
             #if spoutN == taste_positions[0]:
             #    led.red_off()
@@ -497,7 +522,7 @@ try:
             #    led.green_off()
             led.green_off() #Turn off the cue light
             led.white_on() # turn on house white led light
-        if args.LED == 'True': np_led.value = False # turn off nose poke LED
+        if useLED == 'True': np_led.value = False # turn off nose poke LED
         time.sleep(0.001)
         cueIntanIn.value = False
         spoutsIntanIn[spoutN].value = False
@@ -507,7 +532,7 @@ try:
         beamIntanIn.value = False
         
         # Reset the Camera
-        if args.Camera == 'True':
+        if useCamera == 'True':
             camera.cleanup()
             camera.setupCapture(mode = camMode, autoExposure = False, exposure = exposure, gain = gain, buffer_duration = buffer_duration)
             
@@ -566,7 +591,7 @@ finally:
     motora.reset()
 
     #Shut down camera
-    if args.Camera == 'True': camera.cleanup()
+    if useCamera == 'True': camera.cleanup()
     
     #print(licks)
     for spout in spout_locs:
