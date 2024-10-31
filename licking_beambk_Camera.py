@@ -34,7 +34,7 @@ import CameraControl
 
 #TODO: Add in a option to set max licks per trial instead of max time, DONE, untested
 #TODO: I think the max licks may break compatibility with the camera trigger in some circumstances, FIXED Untested
-#TODO: Make the Gui more friendly
+#TODO: Make the Gui more friendly, DONE, untested
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = 'Script for running a BAT session with photobeam lickometer')
@@ -109,8 +109,14 @@ if ParamsFile is not None:
     MaxWaitTime = [line[1].split(',') for line in paramsData if 'MaxWaitTime' in line[0]][0]
     MaxWaitTime = [int(trialN)/1000 for trialN in MaxWaitTime]
     SessionTimeLimit = int([line[1] for line in paramsData if 'SessionTimeLimit' in line[0]][0])/1000
-    useLED = [line[1] for line in paramsData if 'UseLED' in line[0]][0]
-    useCamera = [line[1] for line in paramsData if 'UseCamera' in line[0]][0]
+    try:
+        useLED = [line[1] for line in paramsData if 'UseLED' in line[0]][0]
+    except:
+        useLED = 'False'
+    try:
+        useCamera = [line[1] for line in paramsData if 'UseCamera' in line[0]][0]
+    except:
+        useCamera = 'False'
     
     tastes = [stimN for stimN in Solutions if len(stimN) > 0]
     taste_positions = [2*int(stimN+1) for stimN in range(len(Solutions)) if len(Solutions[stimN]) > 0]
@@ -179,7 +185,7 @@ else:
                                '8: Use LED indicators?',
                                '9: Use behavior camera?'
                               ],
-                              [subjID,30,60,10,30,90,10,None,False,False])
+                              [subjID,30,60,10,30,90,10,None,useLED,useCamera])
     
     #Read params
     subjID = params[0]
