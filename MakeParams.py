@@ -3,6 +3,9 @@ import easygui
 import numpy as np
 import os
 
+#%% Helper Functions
+isTrue = lambda x: str(str(x).lower() in {'1', 'true', 't'})
+
 #%% Get Parameters
 params = easygui.multenterbox('Please enter parameters for this experiment.\nPer-trial parameters may be set manually\nby editing the text of a params file.',
                           'Experiment Parameters',
@@ -13,11 +16,14 @@ params = easygui.multenterbox('Please enter parameters for this experiment.\nPer
                            '4: Maxiumum duration of session in minutes (90min)',
                            '5: Maximum lick time per trial (10s)',
                            '6: Maximum lick count per trial (None)',
-                           '7: Use LED indicators?',
-                           '8: Use behavior camera?',
-                           '9: Param file Title'                            
+                           '7: Use LED indicators? (T/F/Cue)',
+                           '8: Use behavior camera? (T/F)',
+                           '9: Param file Title',
+                           '10: Davis Rig file? (T/F)'
                           ],
-                          [30,60,10,30,90,10,None,False,False,'params'])
+                          [30,60,10,30,90,10,None,False,False,'params','False'])
+if params is None:
+    print('Exiting')
 
 #Read params
 initial_wait = int(params[0]) #30, initial_wait
@@ -30,13 +36,25 @@ max_lick_count = int(params[6]) if params[6] != '' else None #100
 useLED = params[7] #0
 useCamera = params[8] #0
 fileTitle = params[9]
+isDav = params[10]
+
+useLED = isTrue(useLED)
+useCamera = isTrue(useCamera)
+isDav = isTrue(isDav)
 
 # Get tastes and their spout locations
-bot_pos = ['Water', '', '', '']
-t_list = easygui.multenterbox('Please enter the taste to be used in each spout.',
-                              'Taste List',
-                              ['Spout {}'.format(i) for i in ['2, Yellow','4, Blue','6, Green','8, Red']],
-                              values=bot_pos)
+if isDav == 'True':
+    bot_pos = ['']*16
+    t_list = easygui.multenterbox('Please enter the taste to be used in each spout.',
+                                  'Taste List',
+                                  ['Spout {}'.format(i+1) for i in range(16)],
+                                  values=bot_pos)
+else:     
+    bot_pos = ['Water', '', '', '']
+    t_list = easygui.multenterbox('Please enter the taste to be used in each spout.',
+                                  'Taste List',
+                                  ['Spout {}'.format(i) for i in ['2, Yellow','4, Blue','6, Green','8, Red']],
+                                  values=bot_pos)
 
 # Setting up spouts for each trial
 tastes = [i for i in t_list if len(i) > 0]
@@ -65,25 +83,29 @@ SessionTimeLimit = exp_dur
 #%% Create Output
 outTitle = "[Trial Parameters]\n"
 outNumTubes = "NumberOfTubes=4\n"
-outSolutions = f"Solutions={",".join(map(str, t_list))}\n"
-outConcs = f"Concentrations={",".join(map(str, c_list))}\n"
+outSolutions = f"Solutions={','.join(map(str, t_list))}\n"
+outConcs = f"Concentrations={','.join(map(str, c_list))}\n"
 outNTrials = f"NumberOfPres={NTrials}\n"
-outLickTime = f"LickTime={",".join(map(str, [trialN*1000 for trialN in LickTime]))}\n"
-outLickCount = f"LickTime={",".join(map(str, [trialN if trialN is not None else '' for trialN in LickCount]))}\n"
-outTubeSeq = f"LickTime={",".join(map(str, TubeSeq))}\n"
-outIPITimes = f"LickTime={",".join(map(str, [trialN*1000 for trialN in IPITimes]))}\n"
+outLickTime = f"LickTime={','.join(map(str, [trialN*1000 for trialN in LickTime]))}\n"
+outLickCount = f"LickCount={','.join(map(str, [trialN if trialN is not None else '' for trialN in LickCount]))}\n"
+outTubeSeq = f"TubeSeq={','.join(map(str, TubeSeq))}\n"
+outIPITimes = f"IPITimes={','.join(map(str, [trialN*1000 for trialN in IPITimes]))}\n"
 outIPIMin = f"IPImin={IPITimes[0]*1000}\n"
 outIPIMax = f"IPImax={IPITimes[0]*1000}\n"
-outMaxWait = f"LickTime={",".join(map(str, [trialN*1000 for trialN in MaxWaitTime]))}\n"
+outMaxWait = f"MaxWaitTime={','.join(map(str, [trialN*1000 for trialN in MaxWaitTime]))}\n"
 outVersion = "Version=5.90\n"
 outMaxReTries = "MaxReTries=0\n"
 outSessionTimeLimit = f"SessionTimeLimit={round(SessionTimeLimit*1000)}\n"
 outLED = f"UseLED={useLED}\n"
 outCam = f"UseCamera={useCamera}"
-
-outLines = (outTitle + outNumTubes + outSolutions + outConcs + outNTrials + outLickTime + 
-            outLickCount + outTubeSeq + outIPITimes + outIPIMin + outIPIMax + outMaxWait + 
-            outVersion + outMaxReTries + outSessionTimeLimit + outLED + outCam)
+if isDav == 'True':
+    outLines = (outTitle + outNumTubes + outSolutions + outConcs + outNTrials + outLickTime + 
+                outTubeSeq + outIPITimes + outIPIMin + outIPIMax + outMaxWait + 
+                outVersion + outMaxReTries + outSessionTimeLimit)
+else:    
+    outLines = (outTitle + outNumTubes + outSolutions + outConcs + outNTrials + outLickTime + 
+                outLickCount + outTubeSeq + outIPITimes + outIPIMin + outIPIMax + outMaxWait + 
+                outVersion + outMaxReTries + outSessionTimeLimit + outLED + outCam)
 
 #%%
 proj_path = os.getcwd() #'/home/rig337-testpi/Desktop/katz_lickometer'
