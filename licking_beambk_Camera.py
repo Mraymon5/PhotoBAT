@@ -112,21 +112,21 @@ if ParamsFile is not None:
     try:
         useLED = [line[1] for line in paramsData if 'UseLED' in line[0]][0]
     except:
-        useLED = 'False'
+        useLED = useLED
     try:
         useCamera = [line[1] for line in paramsData if 'UseCamera' in line[0]][0]
     except:
-        useCamera = 'False'
+        useCamera = useCamera
     
     tastes = [stimN for stimN in Solutions if len(stimN) > 0]
     taste_positions = [2*int(stimN+1) for stimN in range(len(Solutions)) if len(Solutions[stimN]) > 0]
     concs = [stimN for stimN in Concentrations if len(stimN) > 0]
     
     #Setup Messages
-    trialMsg = '\n'
-    IPIMsg = '\n'
-    licktimeMsg = '\n'
-    waitMsg = '\n'
+    trialMsg = ''
+    IPIMsg = ''
+    licktimeMsg = ''
+    waitMsg = ''
     
     #Set Lick Time List
     if len(LickTime) < NTrials:
@@ -256,10 +256,16 @@ except:
         print("Session data folder found")
     else:
         print("Could not find or create session data folder, can't save data")
-print(dat_folder)
+print(f'Data folder is, {dat_folder}')
 
 #%% Setup the output files
-outFile = os.path.join(dat_folder, "{}{}.txt".format(date,subjID))
+fileTail = ''
+sessnNum = 0
+while os.path.isfile(os.path.join(dat_folder, f"{date}{subjID}{fileTail}.txt")):
+    sessnNum += 1
+    fileTail = f'_{sessnNum:03}'
+
+outFile = os.path.join(dat_folder, "{}{}{}.txt".format(date,subjID,fileTail))
 outVersion = 'Version #, 5.90\n'    
 outSysID = 'System ID, 1\n'
 outDate = f'Start Date, {time.strftime("%Y/%m/%d")}\n'
@@ -300,7 +306,8 @@ if 0: # This is strictly for testing outputs and should be disabled or removed f
         NLicks = random.randrange(0,35)
         latency = random.randrange(0,round(max(MaxWaitTime)*1000))
         licks = [random.randrange(100,150) for lickN in range(NLicks-1)]
-        trialLine = f"{trialN+1:>4},{spoutN:>4},{concs[taste_idx]:>{padConc}},{tastes[taste_idx]:>{padStim}},{IPITimes[trialN]:>7},{LickTime[trialN]:>7},{NLicks:>7},{latency:>{padLat}},{0:>7}\n"  # Left-aligned, padded with spaces
+        timeTemp = [LickTime[trialN] if LickTime[trialN] is not None else 'None'][0]
+        trialLine = f"{trialN+1:>4},{spoutN:>4},{concs[taste_idx]:>{padConc}},{tastes[taste_idx]:>{padStim}},{IPITimes[trialN]:>7},{timeTemp:>7},{NLicks:>7},{latency:>{padLat}},{0:>7}\n"  # Left-aligned, padded with spaces
         with open(outFile, 'r') as outputFile:
             outputData = outputFile.readlines()
             outputData.insert((skipLines+trialN),trialLine)
@@ -308,6 +315,11 @@ if 0: # This is strictly for testing outputs and should be disabled or removed f
             outputFile.writelines(outputData)
             outLicks = f',{",".join(map(str, licks))}' if len(licks) > 0 else ''
             outputFile.write(f'{trialN + 1}{outLicks}\n')
+
+#Report Parameters
+print(outID + 'Output file is, ' + outFile + '\n' + outWait + outNumPres + outLickTime + outLickCount + outIPI + outLED + outCamera)
+print([f'Spout {taste_positions[i]}: {tastes[i]}' for i in range(len(tastes))])
+print('Taste Sequence: {}'.format(TubeSeq))
 
 #%% Setup Hardware
 
@@ -373,11 +385,6 @@ if useCamera == 'True':
     camera.setupCapture(mode = camMode, autoExposure = False, exposure = exposure, gain = gain, buffer_duration = buffer_duration, zeroTime = zeroTime, verbose=True)
     
 #%% Finish initializing the session
-#Report Parameters
-print(outID + outFile + '\n' + outWait + outNumPres + outLickTime + outLickCount + outIPI + outLED + outCamera)
-print([f'Spout {taste_positions[i]}: {tastes[i]}' for i in range(len(tastes))])
-print('Taste Sequence: {}'.format(TubeSeq))
-
 #Final Check
 input('===  Please press ENTER to start the experiment ===')
 print('\n=== Press Ctrl-C to abort session ===\n')
@@ -554,7 +561,8 @@ try:
             latency = round(MaxWaitTime[trialN]*1000)
         else:
             latency = trialLicks[0]
-        trialLine = f"{trialN+1:>4},{spoutN:>4},{concs[taste_idx]:>{padConc}},{tastes[taste_idx]:>{padStim}},{IPITimes[trialN]:>7},{LickTime[trialN]:>7},{NLicks:>7},{latency:>{padLat}},{0:>7}\n"  # Left-aligned, padded with spaces
+        timeTemp = [LickTime[trialN] if LickTime[trialN] is not None else 'None'][0]
+        trialLine = f"{trialN+1:>4},{spoutN:>4},{concs[taste_idx]:>{padConc}},{tastes[taste_idx]:>{padStim}},{IPITimes[trialN]:>7},{timeTemp:>7},{NLicks:>7},{latency:>{padLat}},{0:>7}\n"  # Left-aligned, padded with spaces
         with open(outFile, 'r') as outputFile:
             outputData = outputFile.readlines()
             outputData.insert((skipLines+trialN),trialLine)
