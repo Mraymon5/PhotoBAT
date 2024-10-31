@@ -2,6 +2,7 @@
 import easygui
 import numpy as np
 import os
+import sys
 
 #%% Helper Functions
 isTrue = lambda x: str(str(x).lower() in {'1', 'true', 't'})
@@ -24,6 +25,7 @@ params = easygui.multenterbox('Please enter parameters for this experiment.\nPer
                           [30,60,10,30,90,10,None,False,False,'params','False'])
 if params is None:
     print('Exiting')
+    sys.exit()
 
 #Read params
 initial_wait = int(params[0]) #30, initial_wait
@@ -55,6 +57,9 @@ else:
                                   'Taste List',
                                   ['Spout {}'.format(i) for i in ['2, Yellow','4, Blue','6, Green','8, Red']],
                                   values=bot_pos)
+if t_list is None:
+    print('Exiting')
+    sys.exit()
 
 # Setting up spouts for each trial
 tastes = [i for i in t_list if len(i) > 0]
@@ -64,6 +69,9 @@ concs = easygui.multenterbox('Please enter the concentration of each taste.',
                               'Concentration List',
                               tastes,
                               values=[None]*len(tastes))
+if concs is None:
+    print('Exiting')
+    sys.exit()
 
 c_list = [next(iter(concs)) if x != '' else '' for x in t_list]
 
