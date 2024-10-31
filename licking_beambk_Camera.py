@@ -172,7 +172,7 @@ if ParamsFile is not None:
     if any(LickTime[trialN] is None and LickCount[trialN] is None for trialN in range(NTrials)):
         raise Exception("Both LickTime and LickCount are None for some trials")
 else:
-    params = easygui.multenterbox('Please enter parameters for this experiment!',
+    params = easygui.multenterbox('Please enter parameters for this experiment.\nPer-trial parameters can set by supplying a params file.',
                               'Experiment Parameters',
                               ['0: Animal ID',
                                '1: Wait time before first trial to be delivered (30s)',
@@ -186,7 +186,9 @@ else:
                                '9: Use behavior camera?'
                               ],
                               [subjID,30,60,10,30,90,10,None,useLED,useCamera])
-    
+    if params is None:
+        raise Exception("Session parameters must be supplied manually if no params file is given")
+
     #Read params
     subjID = params[0]
     initial_wait = int(params[1]) #30, initial_wait
