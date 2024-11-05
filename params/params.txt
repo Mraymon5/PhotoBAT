@@ -1,0 +1,17 @@
+[Trial Parameters]
+NumberOfTubes=4
+Solutions=Water,,,
+Concentrations=,,,
+NumberOfPres=10
+LickTime=10000,10000,10000,10000,10000,10000,10000,10000,10000,10000
+LickCount=,,,,,,,,,
+TubeSeq=2,2,2,2,2,2,2,2,2,2
+IPITimes=30000,30000,30000,30000,30000,30000,30000,30000,30000,30000
+IPImin=30000
+IPImax=30000
+MaxWaitTime=60000,60000,60000,60000,60000,60000,60000,60000,60000,60000
+Version=5.90
+MaxReTries=0
+SessionTimeLimit=5400000
+UseLED=False
+UseCamera=False
