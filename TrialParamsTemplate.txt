@@ -1,0 +1,17 @@
+[Trial Parameters]
+NumberOfTubes=4
+Solutions=DI H2O,Citric Acid,NaCl,Quinine#Name of solutions used, in positional order
+Concentrations=0M,200mM,100mM,1mM#Concentration of solutions used, in positional order
+NumberOfPres=15 #Total number of trials to give
+LickTime=5000,5000,5000,5000,5000,5000,5000,5000,5000,5000,5000,5000,5000,5000,5000,5000,5000,5000,5000,5000,5000,5000,5000,5000 #List of lick time limits per trial, in order, in mS
+LickCount=#Maximum count of licks per trial, LickTime takes precedence
+TubeSeq=2,4,6,8,2,4,6,8,2,4 #List of tub positions per trial, in order.[2,4,6,8] are acceptable positions 
+IPITimes=60000,60000,60000,60000,60000,60000,60000,60000,60000,60000,60000,60000,60000,60000,60000,60000,60000,60000,60000,60000,60000,60000,60000,60000 #List of IPI times, in order, in mS, starting with delay to the first presentation 
+IPImin=50000 #If IPITimes is empty, the lower limit of IPI to randomize within, in mS
+IPImax=70000 #If IPITimes is empty, the upper limit of IPI to randomize within, in mS
+MaxWaitTime=120000 #Maximum amount of time to wait for licking per trial, in order, in mS
+Version=5.90
+MaxReTries=0 #Not implemented
+SessionTimeLimit=6000000 #Maximum duration of the session, in mS
+UseLED=False #Use the LED indicators, must be True or False
+UseCamera=False #Use the behavior camera, must be True or False

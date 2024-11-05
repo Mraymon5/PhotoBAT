@@ -290,10 +290,10 @@ class TriggerCaptureFunctions():
         elif get_Settings == "7":
             PixX, PixY, FPS = 1024, 768, 30
         else:
-            print("Invalid selection, using default.")
+            print("Camera: Invalid selection, using default.")
             PixX, PixY, FPS = 640, 480, 120
         
-        if verbose: print(f"Selected Resolution: {PixX}x{PixY}, {FPS}fps")
+        if verbose: print(f"Camera: Selected Resolution: {PixX}x{PixY}, {FPS}fps")
         
         if autoExposure==True:
             self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 3.0)  # Enables auto-exposure
@@ -318,12 +318,12 @@ class TriggerCaptureFunctions():
         getFPS = round(self.cap.get(cv2.CAP_PROP_FPS),2)
         getPixX = round(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         getPixY = round(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        if verbose: print(f"Actual Resolution: {getPixX}x{getPixY}, {getFPS}fps")
+        if verbose: print(f"Camera: Actual Resolution: {getPixX}x{getPixY}, {getFPS}fps")
         getAutoExp = self.cap.get(cv2.CAP_PROP_AUTO_EXPOSURE)  # Enables manual exposure control
         getExp = self.cap.get(cv2.CAP_PROP_EXPOSURE)
         
-        if verbose: print(f'Auto Exposure is : {getAutoExp}, Exposure is {getExp}')
-        if verbose: print('Setup Complete')
+        if verbose: print(f'Camera: Auto Exposure is: {getAutoExp}, Exposure is {getExp}')
+        if verbose: print('Camera: Setup Complete')
 
     def startBuffer(self):
         print("Camera: Starting rolling buffer...")
@@ -351,7 +351,8 @@ class TriggerCaptureFunctions():
         # Wait for the buffer thread to finish
         if self.buffer_thread.is_alive():
             self.buffer_thread.join()
-    
+        self.stop_buffer.clear()
+
         # Create a VideoWriter object to save the buffer + additional capture
         fourcc = cv2.VideoWriter_fourcc(*'MJPG') 
         outputFile = f'{outputFolder}/{title}.avi'
@@ -367,15 +368,16 @@ class TriggerCaptureFunctions():
             if not self.cap.isOpened():
                 print("Camera: Capture object was released or closed unexpectedly.")
             if start_time is None: start_time = time.time()
-            while int((time.time() - start_time)) < duration:
+            while int((time.time() - start_time)) < duration and \
+                  not self.stop_buffer.is_set():
                 ret, frame = self.cap.read()
                 if ret:
                     self.buffer.append((frame, time.time()))
                     #out.write(frame)
                 else:
                     print("Camera: No Frame")
-                    time.sleep(1)
-                    
+                    #time.sleep(1)
+                        
             #Save frames and release VideoWriter when done
             timeStamps = np.array([])
             for frame, stamp in self.buffer:
@@ -384,11 +386,7 @@ class TriggerCaptureFunctions():
             out.release()
             np.savetxt(f'{outputFolder}/{title}Timestamps.csv', (timeStamps-start_time)*1000)
             print(f"Camera: Recording complete, video saved as {outputFile}.")
-
-            # Clear frames from the internal buffer
-            while self.cap.grab():
-                pass
-
+    
         # Start saving additional frames in a new thread
         self.save_thread = threading.Thread(target=capture_additional_frames)
         self.save_thread.start()
@@ -397,7 +395,9 @@ class TriggerCaptureFunctions():
         if not self.stop_buffer.is_set():
             self.stop_buffer.set()  # Stop the buffer loop
         self.cap.release()
-
+        # Clear frames from the internal buffer
+        while self.cap.grab():
+            pass
 
 #%% Function call for running the script from Terminal
 if __name__ == "__main__":
