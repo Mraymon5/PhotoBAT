@@ -1,3 +1,6 @@
+#https://files.digilent.com/manuals/UL-Linux/python/index.html    #Library reference for Linux
+#https://files.digilent.com/manuals/Mcculw_WebHelp/ULStart.htm    #library reference for Windows
+
 import sys
 
 class MCCInterface:
@@ -5,7 +8,15 @@ class MCCInterface:
         if sys.platform == 'linux':
             from uldaq import DaqDevice
             import uldaq as ul
-            self.device = DaqDevice()
+            devices = ul.get_daq_device_inventory(ul.InterfaceType.USB)
+            # Ensure there's at least one device found
+            if not devices:
+                print("No DAQ devices found!")
+            else:
+                # Get the first device's descriptor
+                device_descriptor = devices[0]  # Assuming the first device is what you want to use
+            self.device = DaqDevice(device_descriptor)
+            self.device.connect()
             self.dio_device = self.device.get_dio_device()
         elif sys.platform == 'win32':
             from mcculw import ul
@@ -74,12 +85,22 @@ class MCCInterface:
         Nothing
         """
         if sys.platform == 'linux':
-            if direction == 'input': self.dio_device.d_config_port(self.port_type[port], self.ul.Direction.OUTPUT)
-            if direction == 'output': self.dio_device.d_config_port(self.port_type[port], self.ul.Direction.INPUT)
+            if direction == 'input': self.dio_device.d_config_port(self.port_type[port], self.ul.DigitalDirection.INPUT)
+            if direction == 'output': self.dio_device.d_config_port(self.port_type[port], self.ul.DigitalDirection.OUTPUT)
         elif sys.platform == 'win32':
-            if direction == 'input': self.d_config_port(board_num, self.port_type[port], self.ul.DigitalIODirection.OUT)
-            if direction == 'output': self.d_config_port(board_num, self.port_type[port], self.ul.DigitalIODirection.IN)
-        
+            if direction == 'input': self.d_config_port(board_num, self.port_type[port], self.ul.DigitalIODirection.IN)
+            if direction == 'output': self.d_config_port(board_num, self.port_type[port], self.ul.DigitalIODirection.OUT)
 
-mcc = MCCInterface()
-result = mcc.d_in(board_num = 0, port = 0)
+    def d_close_port(self):
+        if sys.platform == 'linux':
+            self.device.disconnect()
+            self.device.release()
+
+MCC = MCCInterface()
+MCC.d_config_port(0,0,'output')
+MCC.d_out(0,0,0)
+print(MCC.d_in(0,0))
+MCC.d_out(0,0,1)
+print(MCC.d_in(0,0))
+MCC.d_out(0,0,0)
+print(MCC.d_in(0,0))
