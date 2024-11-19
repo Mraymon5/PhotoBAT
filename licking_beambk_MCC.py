@@ -46,7 +46,7 @@ from bipolar_class import rotate_dir
 from rgbled_class import RGBLed
 from turn_motor import *
 import CameraControl
-import MCC_Setup; mcc = MCCInterface()
+import MCC_Setup; mcc = MCC_Setup.MCCInterface()
 
 #%% Helper Functions
 # Function to read in a specific bit from the MCC sensor
@@ -85,12 +85,14 @@ shutterMagChannel = 5 #Mag sensor on channel B5
 shutterInitSteps = 100 #The number of steps from the mag sensor to the "closed" position
 shutterRunSteps = 100 #The number of steps to open/close the shutter
 shutterDir = 1 #The base direction of the shutter
+shutterSpeed = 0.01
 
 tableChannels = [4, 5, 6, 7]  # Motor 2 on channels A4-A7
 tableMagChannel = 4 #Mag sensor on channel B4
-tableInitSteps = 100 #The number of steps from the mag sensor to the home position
-tableRunSteps = 100 #The number of steps between bottle positions
+tableInitSteps = 17 #The number of steps from the mag sensor to the home position
+tableRunSteps = 275 #The number of steps between bottle positions
 tableDir = 1 #The base direction of the table
+tableSpeed = 0.01
 
 def step_motor(motor_channels, steps, delay=0.01, direction=0):
     global last_step_index
@@ -149,9 +151,9 @@ def moveShutter(Open = False, Init = False):
         step_motor(motor_channels = shutterChannels, steps = shutterInitSteps, direction = shutterDir)
     else:
         if Open:
-            step_motor(motor_channels = shutterChannels, steps = shutterRunSteps, direction = shutterDir)
+            step_motor(motor_channels = shutterChannels, steps = shutterRunSteps, direction = shutterDir, delay = shutterSpeed)
         else:
-            step_motor(motor_channels = shutterChannels, steps = shutterRunSteps, direction = not shutterDir)
+            step_motor(motor_channels = shutterChannels, steps = shutterRunSteps, direction = not shutterDir, delay = shutterSpeed)
 
 def moveTable(movePos = 0, Init = False):
     if Init:
@@ -161,9 +163,9 @@ def moveTable(movePos = 0, Init = False):
         step_motor(motor_channels = tableChannels, steps = tableInitSteps, direction = tableDir)
     else:
         if movePos > 0:
-            step_motor(motor_channels = tableChannels, steps = movePos*tableRunSteps, direction = tableDir)
+            step_motor(motor_channels = tableChannels, steps = movePos*tableRunSteps, direction = tableDir, delay = tableSpeed)
         else:
-            step_motor(motor_channels = tableChannels, steps = abs(movePos)*tableRunSteps, direction = not tableDir)
+            step_motor(motor_channels = tableChannels, steps = abs(movePos)*tableRunSteps, direction = not tableDir, delay = tableSpeed)
 
 #%% Setup Session Parameters
 
@@ -665,9 +667,10 @@ finally:
     setBit(portType=trialTTL[0], channel=trialTTL[1], value=0)
     setBit(portType=lickTTL[0], channel=lickTTL[1], value=0)
     
-    # Return spout to home. This won't work if session is aborted while moving motor
-    # create Motor instance
+    # Return spout to home, close shutter
     moveTable(Init=True)
+    moveShutter(Init=True)   
+    mcc.d_close_port()
     
     #Shut down camera
     if useCamera == 'True': camera.cleanup()
