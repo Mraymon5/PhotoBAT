@@ -5,7 +5,8 @@ import sys
 
 class MCCInterface:
     def __init__(self):
-        if sys.platform == 'linux':
+        if sys.platform.startswith('linux'):
+            self.linux = True
             from uldaq import DaqDevice
             import uldaq as ul
             devices = ul.get_daq_device_inventory(ul.InterfaceType.USB)
@@ -18,13 +19,16 @@ class MCCInterface:
             self.device = DaqDevice(device_descriptor)
             self.device.connect()
             self.dio_device = self.device.get_dio_device()
-        elif sys.platform == 'win32':
+        elif sys.platform.startswith('win'):
+            self.linux = False
             from mcculw import ul
+        else:
+            raise OSError("Unsupported platform")
+        self.ul = ul
         self.port_type = [ul.DigitalPortType.FIRSTPORTA,
                           ul.DigitalPortType.FIRSTPORTB,
                           ul.DigitalPortType.FIRSTPORTCL,
                           ul.DigitalPortType.FIRSTPORTCH]
-        self.ul = ul
 
     def d_in(self, board_num, port):
         """ 
@@ -41,9 +45,9 @@ class MCCInterface:
         -------
         A byte containing the state of all channels on the target port
         """
-        if sys.platform == 'linux':
+        if self.linux: #Linux
             return self.dio_device.d_in(self.port_type[port])
-        elif sys.platform == 'win32':
+        else: #Windows
             return self.ul.d_in(board_num, self.port_type[port])
 
     def d_out(self, board_num, port, data):
@@ -62,9 +66,9 @@ class MCCInterface:
         -------
         Nothing
         """
-        if sys.platform == 'linux':
+        if self.linux: #Linux
             self.dio_device.d_out(self.port_type[port], data)
-        elif sys.platform == 'win32':
+        else: #Windows
             self.ul.d_out(board_num, self.port_type[port], data)
         
     def d_config_port(self, board_num, port, direction):
@@ -84,15 +88,15 @@ class MCCInterface:
         -------
         Nothing
         """
-        if sys.platform == 'linux':
+        if self.linux: #Linux
             if direction == 'input': self.dio_device.d_config_port(self.port_type[port], self.ul.DigitalDirection.INPUT)
             if direction == 'output': self.dio_device.d_config_port(self.port_type[port], self.ul.DigitalDirection.OUTPUT)
-        elif sys.platform == 'win32':
+        else: #Windows
             if direction == 'input': self.d_config_port(board_num, self.port_type[port], self.ul.DigitalIODirection.IN)
             if direction == 'output': self.d_config_port(board_num, self.port_type[port], self.ul.DigitalIODirection.OUT)
 
     def d_close_port(self):
-        if sys.platform == 'linux':
+        if self.linux: #Linux
             self.device.disconnect()
             self.device.release()
 
