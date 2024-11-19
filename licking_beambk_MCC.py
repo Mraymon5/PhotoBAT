@@ -82,7 +82,7 @@ last_step_index = {} # Global variable to keep track of the last step index for 
 
 shutterChannels = [0, 1, 2, 3]  # Motor 1 on channels A0-A3
 shutterMagChannel = 5 #Mag sensor on channel B5
-shutterInitSteps = 100 #The number of steps from the mag sensor to the "closed" position
+shutterInitSteps = 10 #The number of steps from the mag sensor to the "closed" position
 shutterRunSteps = 100 #The number of steps to open/close the shutter
 shutterDir = 1 #The base direction of the shutter
 shutterSpeed = 0.01
