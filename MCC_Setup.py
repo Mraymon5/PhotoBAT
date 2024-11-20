@@ -9,7 +9,7 @@ class MCCInterface:
             self.linux = True
             from uldaq import DaqDevice
             import uldaq as ul
-            devices = ul.get_daq_device_inventory(ul.InterfaceType.USB)
+            devices = ul.get_daq_device_inventory(ul.InterfaceType.ANY)
             # Ensure there's at least one device found
             if not devices:
                 print("No DAQ devices found!")
