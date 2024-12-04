@@ -4,7 +4,7 @@
 # Raspberry Pi bipolar Stepper Motor Driver Class
 # Hardware Nema17 12 Volt Stepper High Torque Motor
 # Gear Reduction Ratio: 1/64 
-# Uses the A4988 H-bridge circuit driver board.
+# Uses the A4988 H-bridge circuit driver board: https://www.mouser.com/pdfDocs/A4988-Datasheet.pdf
 #
 # Author : Bob Rathbone
 # Site   : http://www.bobrathbone.com
