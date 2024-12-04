@@ -98,20 +98,23 @@ def step_motor(motor_channels, steps, delay=0.01, direction=0):
     global last_step_index
     # Full-step sequence
     step_sequence = [
-        0b0001,  # Step 1
-        0b0011,  # Step 2
-        0b0010,  # Step 3
-        0b0110,  # Step 4
-        0b0100,  # Step 5
-        0b1100,  # Step 6
-        0b1000,  # Step 7
-        0b1001,  # Step 8
+        0b1110,  # Step 1
+        0b1010,  # Step 2
+        0b1011,  # Step 3
+        0b1001,  # Step 4
+        0b1101,  # Step 5
+        0b0101,  # Step 6
+        0b0111,  # Step 7
+        0b0110,  # Step 8
     ]
 
     # Reverse the sequence for backward direction
     if direction:
         step_sequence = step_sequence[::-1]
-
+        
+    # Read in the current state of the output to avoid writing over the other motor
+    current_state = mcc.d_in(board_num=board_num, port = 0)
+       
     # Initialize last step index for the motor if not already set
     if motor_channels not in last_step_index:
         last_step_index[motor_channels] = 0  # Start at step 0 (step 1 in the sequence)
@@ -122,9 +125,6 @@ def step_motor(motor_channels, steps, delay=0.01, direction=0):
     for _ in range(steps):
         # Get the current step from the sequence
         step = step_sequence[current_step_index]
-
-        # Read the current port state
-        current_state = mcc.d_in(board_num=board_num, port = 0)
 
         # Clear the motor's 4 bits using a mask
         mask = ~(0b1111 << motor_channels)
@@ -141,7 +141,22 @@ def step_motor(motor_channels, steps, delay=0.01, direction=0):
         current_step_index = (current_step_index + 1) % len(step_sequence)
 
     # Update the last step index for the motor
-    last_step_index[motor_channels] = current_step_index            
+    last_step_index[motor_channels] = current_step_index
+    
+    # Set motor to idle
+    step = 0b1111
+
+    # Clear the motor's 4 bits using a mask
+    mask = ~(0b1111 << motor_channels)
+    current_state &= mask  # Clears the 4 bits for the motor
+
+    # Set the new 4-bit step sequence shifted to the motor channels
+    new_state = current_state | (step << motor_channels)
+
+    # Write the updated state to the port
+    mcc.d_out(board_num = board_num, port = 0, data = new_state)
+    time.sleep(delay)
+    
     
 def moveShutter(Open = False, Init = False):
     if Init:
