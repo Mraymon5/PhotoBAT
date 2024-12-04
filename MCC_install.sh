@@ -1,5 +1,9 @@
 #!/bin/bash
 
+sudo apt-get update
+sudo apt-get upgrade
+sudo pip3 install --upgrade setuptools
+
 # Detect operating system
 if [[ "$OSTYPE" == "msys"* || "$OSTYPE" == "win32"* ]]; then
     # Code that may need to be run ahead of time?
@@ -47,3 +51,10 @@ else
     echo "Unsupported operating system: $OSTYPE"
     exit 1
 fi
+
+pip install numpy
+pip install board
+pip install easygui
+pip install RPI.GPIO
+pip install adafruit-blinka
+pip install opencv-python
