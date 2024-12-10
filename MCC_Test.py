@@ -64,10 +64,11 @@ if 1:
     board_num = 0
     last_step_index = {} # Global variable to keep track of the last step index for each motor
     stop_motor = threading.Event()
+    motor_stopped = threading.Event()
 
     shutterChannels = [0, 1, 2, 3]  # Motor 1 on channels A0-A3
     shutterMagChannel = 5 #Mag sensor on channel B5
-    shutterInitSteps = 10 #The number of steps from the mag sensor to the "closed" position
+    shutterInitSteps = -50 #The number of steps from the mag sensor to the "closed" position
     shutterRunSteps = 100 #The number of steps to open/close the shutter
     shutterDir = 1 #The base direction of the shutter
     shutterSpeed = 0.01
@@ -75,7 +76,7 @@ if 1:
     tableChannels = [4, 5, 6, 7]  # Motor 2 on channels A4-A7
     tableMagChannel = 4 #Mag sensor on channel B4
     tableInitSteps = -17 #The number of steps from the mag sensor to the home position
-    tableRunSteps = 126 #The number of steps between bottle positions
+    tableRunSteps = 125 #The number of steps between bottle positions
     tableDir = 0 #The base direction of the table
     tableSpeed = 0.005
 
@@ -132,35 +133,35 @@ if 1:
             # Move to the next step in the sequence
             current_step_index = (current_step_index + 1) % len(step_sequence)
             stepped += 1
+        motor_stopped.set()
 
         # Update the last step index for the motor
         last_step_index[motor_key] = current_step_index
         
         # Set motor to idle
         step = 0b1111
-
-        # Clear the motor's 4 bits using a mask
-        mask = ~(0b1111 << motor_channels[0])
+        mask = ~(0b1111 << motor_channels[0]) # Clear the motor's 4 bits using a mask
         current_state &= mask  # Clears the 4 bits for the motor
-
-        # Set the new 4-bit step sequence shifted to the motor channels
-        new_state = current_state | (step << motor_channels[0])
-
-        # Write the updated state to the port
-        MCC.d_out(board_num = board_num, port = 0, data = new_state)
-        time.sleep(delay) #is this a problem? MAR
+        new_state = current_state | (step << motor_channels[0]) # Set the new 4-bit step sequence shifted to the motor channels
+        MCC.d_out(board_num = board_num, port = 0, data = new_state) # Write the updated state to the port
         
     def moveShutter(Open = False, Init = False):
         if Init:
             print("Backing up...")
-            step_motor(motor_channels = shutterChannels, steps = 50, direction = shutterDir)
+            if getBit(portType = 1, channel = shutterMagChannel):
+                step_motor(motor_channels = shutterChannels, steps = 50, direction = shutterDir, delay=shutterSpeed)
             print("Done. Advancing to mag switch...")
             stop_motor.clear()
-            motor_thread = threading.Thread(target=step_motor, args=(shutterChannels, 10000, shutterSpeed, shutterDir))
+            motor_thread = threading.Thread(target=step_motor, args=(shutterChannels, 10000, shutterSpeed, not shutterDir))
             motor_thread.start()
             while not getBit(portType = 1, channel = shutterMagChannel):
                 time.sleep(0.01)
-            stop_motor.set()  # Stop the motor loop
+            while not motor_stopped.is_set():
+                stop_motor.set()  # Stop the motor loop
+            if motor_thread.is_alive():
+                motor_thread.join()
+            stop_motor.clear()
+            motor_stopped.clear()
             print("Done. Moving to home position...")
             step_motor(motor_channels = shutterChannels, steps = shutterInitSteps, direction = shutterDir)
             print("Done. Shutter initialized.")
@@ -173,10 +174,10 @@ if 1:
     def moveTable(movePos = 0, Init = False):
         if Init:
             print("Backing up...")
-            step_motor(motor_channels = tableChannels, steps = 50, direction = tableDir)
+            step_motor(motor_channels = tableChannels, steps = 50, direction = tableDir, delay=tableSpeed)
             print("Done. Advancing to mag switch...")
             stop_motor.clear()
-            motor_thread = threading.Thread(target=step_motor, args=(tableChannels, 10000, tableSpeed, tableDir))
+            motor_thread = threading.Thread(target=step_motor, args=(tableChannels, 10000, tableSpeed, not tableDir))
             motor_thread.start()
             while not getBit(portType = 1, channel = tableMagChannel):
                 time.sleep(0.01)
@@ -193,9 +194,9 @@ if 1:
     # Function to update sensor values
     def update_sensor_display(sensor_labels):
         readSens = MCC.d_in(0, 1)
-        lSens = getBit(portType=1, channel=7, sensorState=readSens)
-        sMagSens = getBit(portType=1, channel=5, sensorState=readSens)
-        tMagSens = getBit(portType=1, channel=4, sensorState=readSens)
+        lSens = f"Lick Sensor: {getBit(portType=1, channel=7, sensorState=readSens)}"
+        sMagSens = f"Shutter Mag: {getBit(portType=1, channel=5, sensorState=readSens)}"
+        tMagSens = f"Table Mag: {getBit(portType=1, channel=4, sensorState=readSens)}"
         values = [lSens, sMagSens, tMagSens]
         
         # Update each label with the corresponding sensor value
@@ -203,7 +204,7 @@ if 1:
             label.config(text=value)
         
         # Schedule the function to run again after 500ms
-        root.after(500, update_sensor_display, sensor_labels)
+        root.after(100, update_sensor_display, sensor_labels)
 
     def update_parameters():
         # Example of retrieving values from the text boxes
