@@ -52,19 +52,19 @@ import MCC_Setup; mcc = MCC_Setup.MCCInterface()
 # Function to read in a specific bit from the MCC sensor
 def getBit(portType, channel, sensorState = None): #sensor_state
     if sensorState is None:
-        sensorState = MCC.d_in(board_num, portType)
+        sensorState = mcc.d_in(board_num, portType)
     return (sensorState >> channel) & 1
 
 def setBit(portType, channel, value):
     # Read the current state of the port
-    current_state = MCC.d_in(board_num, portType)
+    current_state = mcc.d_in(board_num, portType)
     # Set the specific bit without altering others
     if value:
         new_state = current_state | (1 << channel) #set a channel High
     else:
         new_state = current_state & ~(1 << channel) #set a channel Low
     # Write the new state back to the port
-    MCC.d_out(board_num, portType, new_state)
+    mcc.d_out(board_num, portType, new_state)
 
 # Function to read in values from params file and save them as int or None
 def intOrNone(value, factor=1):
@@ -121,7 +121,7 @@ def step_motor(motor_channels, steps, delay=0.01, direction=0):
         step_sequence = step_sequence[::-1]
         
     # Read in the current state of the output to avoid writing over the other motor
-    current_state = MCC.d_in(board_num=board_num, port = 0)
+    current_state = mcc.d_in(board_num=board_num, port = 0)
     
     # Initialize last step index for the motor if not already set
     if motor_key not in last_step_index:
@@ -147,7 +147,7 @@ def step_motor(motor_channels, steps, delay=0.01, direction=0):
         new_state = current_state | (step << motor_channels[0])
 
         # Write the updated state to the port
-        MCC.d_out(board_num = board_num, port = 0, data = new_state)
+        mcc.d_out(board_num = board_num, port = 0, data = new_state)
         time.sleep(delay)
 
         # Move to the next step in the sequence
@@ -163,7 +163,7 @@ def step_motor(motor_channels, steps, delay=0.01, direction=0):
     mask = ~(0b1111 << motor_channels[0]) # Clear the motor's 4 bits using a mask
     current_state &= mask  # Clears the 4 bits for the motor
     new_state = current_state | (step << motor_channels[0]) # Set the new 4-bit step sequence shifted to the motor channels
-    MCC.d_out(board_num = board_num, port = 0, data = new_state) # Write the updated state to the port
+    mcc.d_out(board_num = board_num, port = 0, data = new_state) # Write the updated state to the port
     stop_motor.clear()
     
 def moveShutter(Open = False, Init = False):
