@@ -646,7 +646,7 @@ try:
                 if (useLED == 'True'): setBit(portType=lickLED[0], channel=lickLED[1], value=0)
                 setBit(portType=lickTTL[0], channel=lickTTL[1], value=0)
 
-                if off_lick - new_lick > 0.02: # to avoid noise (from motor)- induced licks
+                if (off_lick - new_lick > 0.02) and (off_lick - new_lick < 0.12): # to avoid noise (from motor)- induced licks TODO: See if these limits can be tuned tighter
                     licks[this_spout][this_trial_num].append(round((new_lick-last_lick)*1000))
                     if len(licks[this_spout][this_trial_num]) == 1:
                         trial_init_time = new_lick #if lick happens, reset the trial_init time
