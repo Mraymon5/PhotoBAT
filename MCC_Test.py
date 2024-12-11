@@ -82,6 +82,7 @@ if 1:
 
     def step_motor(motor_channels, steps, delay=0.01, direction=0):
         global last_step_index
+        global stop_motor
         motor_key = tuple(motor_channels)
         # Full-step sequence
         step_sequence = [
@@ -116,6 +117,9 @@ if 1:
         stepped = 0
         while (stepped < steps) and not stop_motor.is_set():
         #for _ in range(steps):
+            #if stop_motor.is_set():
+            #    break
+            print(f'Steps: {stepped}, stop_motor: {stop_motor}')
             # Get the current step from the sequence
             step = step_sequence[current_step_index]
 
@@ -144,8 +148,10 @@ if 1:
         current_state &= mask  # Clears the 4 bits for the motor
         new_state = current_state | (step << motor_channels[0]) # Set the new 4-bit step sequence shifted to the motor channels
         MCC.d_out(board_num = board_num, port = 0, data = new_state) # Write the updated state to the port
+        stop_motor.clear()
         
     def moveShutter(Open = False, Init = False):
+        global stop_motor
         if Init:
             print("Backing up...")
             if getBit(portType = 1, channel = shutterMagChannel):
@@ -156,8 +162,8 @@ if 1:
             motor_thread.start()
             while not getBit(portType = 1, channel = shutterMagChannel):
                 time.sleep(0.01)
-            while not motor_stopped.is_set():
-                stop_motor.set()  # Stop the motor loop
+            stop_motor.set()  # Stop the motor loop
+            print(f'Main Loop Stop_Motor: {stop_motor}')
             if motor_thread.is_alive():
                 motor_thread.join()
             stop_motor.clear()
@@ -172,6 +178,7 @@ if 1:
                 step_motor(motor_channels = shutterChannels, steps = shutterRunSteps, direction = not shutterDir, delay = shutterSpeed)
 
     def moveTable(movePos = 0, Init = False):
+        global stop_motor
         if Init:
             print("Backing up...")
             step_motor(motor_channels = tableChannels, steps = 50, direction = tableDir, delay=tableSpeed)
@@ -182,6 +189,10 @@ if 1:
             while not getBit(portType = 1, channel = tableMagChannel):
                 time.sleep(0.01)
             stop_motor.set()  # Stop the mtotor loop
+            print(f'Main Loop Stop_Motor: {stop_motor}')
+            if motor_thread.is_alive():
+                motor_thread.join()
+            stop_motor.clear()
             print("Done. Moving to home position...")
             step_motor(motor_channels = tableChannels, steps = tableInitSteps, direction = tableDir)
             print("Done. Table initialized.")
@@ -302,5 +313,3 @@ if 1:
         root.mainloop()
     finally:
         MCC.d_close_port()
-
-
