@@ -205,18 +205,20 @@ if 1:
     # Calibration Gui functions
     # Function to update sensor values
     def update_sensor_display(sensor_labels):
+        readTime = time.time()
         readSens = MCC.d_in(0, 1)
+        readDelay = f"Read Delay: {round(time.time() - readTime, 4)}"
         lSens = f"Lick Sensor: {getBit(portType=1, channel=7, sensorState=readSens)}"
         sMagSens = f"Shutter Mag: {getBit(portType=1, channel=5, sensorState=readSens)}"
         tMagSens = f"Table Mag: {getBit(portType=1, channel=4, sensorState=readSens)}"
-        values = [lSens, sMagSens, tMagSens]
+        values = [lSens, sMagSens, tMagSens, readDelay]
         
         # Update each label with the corresponding sensor value
         for label, value in zip(sensor_labels.values(), values):
             label.config(text=value)
         
         # Schedule the function to run again after 500ms
-        root.after(100, update_sensor_display, sensor_labels)
+        root.after(10, update_sensor_display, sensor_labels)
 
     def update_parameters():
         # Example of retrieving values from the text boxes
@@ -301,7 +303,8 @@ if 1:
         sensor_labels = {
             "Lick Sensor": ttk.Label(sensor_frame, text="Lick Sensor: ---"),
             "Shutter Mag Sensor": ttk.Label(sensor_frame, text="Shutter Mag Sensor: ---"),
-            "Table Mag Sensor": ttk.Label(sensor_frame, text="Table Mag Sensor: ---")
+            "Table Mag Sensor": ttk.Label(sensor_frame, text="Table Mag Sensor: ---"),
+            "Read Delay": ttk.Label(sensor_frame, text="Read Delay: ---")
         }
         
         # Place each label in the grid
