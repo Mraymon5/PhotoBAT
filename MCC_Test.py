@@ -4,7 +4,6 @@ import numpy as np
 import pickle
 import easygui
 import json
-import board
 import sys
 import argparse
 import random
@@ -12,6 +11,7 @@ from datetime import datetime
 import threading
 import tkinter as tk
 from tkinter import ttk
+if sys.platform.startswith('linux'): import board
 
 #Currently unused modules
 import digitalio
@@ -24,10 +24,11 @@ from pathlib import Path
 
 #%% Local pi functions
 sys.path.append('/home/test-pi/PhotoBAT/')
-from bipolar_class import Motor
-from bipolar_class import rotate_dir
-from rgbled_class import RGBLed
-from turn_motor import *
+if sys.platform.startswith('linux'):
+    from bipolar_class import Motor
+    from bipolar_class import rotate_dir
+    from rgbled_class import RGBLed
+    from turn_motor import *
 import CameraControl
 import MCC_Setup; MCC = MCC_Setup.MCCInterface()
 
