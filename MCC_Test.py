@@ -120,7 +120,7 @@ if 1:
         #for _ in range(steps):
             #if stop_motor.is_set():
             #    break
-            print(f'Steps: {stepped}, stop_motor: {stop_motor}')
+            #print(f'Steps: {stepped}, stop_motor: {stop_motor}') #Diagnostic
             # Get the current step from the sequence
             step = step_sequence[current_step_index]
 
