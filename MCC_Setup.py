@@ -19,16 +19,25 @@ class MCCInterface:
             self.device = DaqDevice(device_descriptor)
             self.device.connect()
             self.dio_device = self.device.get_dio_device()
+            self.ul = ul
+            self.port_type = [ul.DigitalPortType.FIRSTPORTA,
+                            ul.DigitalPortType.FIRSTPORTB,
+                            ul.DigitalPortType.FIRSTPORTCL,
+                            ul.DigitalPortType.FIRSTPORTCH]
         elif sys.platform.startswith('win'):
             self.linux = False
             from mcculw import ul
+            from mcculw.enums import DigitalIODirection
+            from mcculw.enums import DigitalPortType
+            self.ul = ul
+            self.Dir = DigitalIODirection
+            self.port_type = [DigitalPortType.FIRSTPORTA,
+                              DigitalPortType.FIRSTPORTB,
+                              DigitalPortType.FIRSTPORTCL,
+                              DigitalPortType.FIRSTPORTCH]
+
         else:
             raise OSError("Unsupported platform")
-        self.ul = ul
-        self.port_type = [ul.DigitalPortType.FIRSTPORTA,
-                          ul.DigitalPortType.FIRSTPORTB,
-                          ul.DigitalPortType.FIRSTPORTCL,
-                          ul.DigitalPortType.FIRSTPORTCH]
 
     def d_in(self, board_num, port):
         """ 
@@ -89,11 +98,19 @@ class MCCInterface:
         Nothing
         """
         if self.linux: #Linux
-            if direction == 'input': self.dio_device.d_config_port(self.port_type[port], self.ul.DigitalDirection.INPUT)
-            if direction == 'output': self.dio_device.d_config_port(self.port_type[port], self.ul.DigitalDirection.OUTPUT)
+            if direction == 'input':
+                self.dio_device.d_config_port(self.port_type[port], self.ul.DigitalDirection.INPUT)
+            elif direction == 'output':
+                self.dio_device.d_config_port(self.port_type[port], self.ul.DigitalDirection.OUTPUT)
+            else:
+                print("Unacceptable direction argument; use 'input' or 'output'")
         else: #Windows
-            if direction == 'input': self.d_config_port(board_num, self.port_type[port], self.ul.DigitalIODirection.IN)
-            if direction == 'output': self.d_config_port(board_num, self.port_type[port], self.ul.DigitalIODirection.OUT)
+            if direction == 'input':
+                self.ul.d_config_port(board_num, self.port_type[port], self.Dir.IN)
+            elif direction == 'output':
+                self.ul.d_config_port(board_num, self.port_type[port], self.Dir.OUT)
+            else:
+                print("Unacceptable direction argument; use 'input' or 'output'")
 
     def d_close_port(self):
         if self.linux: #Linux
