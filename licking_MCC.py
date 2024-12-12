@@ -8,28 +8,31 @@ import numpy as np
 import pickle
 import easygui
 import json
-import board
 import sys
-
 import argparse
 import random
 from datetime import datetime
 import threading
 
 #Currently unused modules
-import digitalio
-import busio
-import atexit
-import subprocess
-import signal
-from subprocess import Popen, PIPE
-from pathlib import Path
+if False:
+    import digitalio
+    import busio
+    import atexit
+    import subprocess
+    import signal
+    from subprocess import Popen, PIPE
+    from pathlib import Path
 
 #%% Import the MCC library
 if sys.platform.startswith('linux'):
 #    from uldaq import DaqDevice, DioInfo, DigitalPortIoType, InterfaceType
 #    import uldaq as ul
-    # Additional imports or initialization specific to uldaq if needed
+    import board
+    from bipolar_class import Motor
+    from bipolar_class import rotate_dir
+    from rgbled_class import RGBLed
+    from turn_motor import *
     print("Using uldaq for Linux")
 elif sys.platform.startswith('win'):
 #    from mcculw import ul
@@ -534,9 +537,10 @@ lickSensor = [1, 7] #port B, channel 7
 #getBit(portType=lickSensor[0], channel=lickSensor[1])
 
 
-# setup RGB LEDs
-red_pin, green_pin, blue_pin = board.D13, board.D19, board.D26
-led = RGBLed(red_pin, green_pin, blue_pin)
+# setup RGB LEDs, not implemented
+#if sys.platform.startswith('linux'):
+#    red_pin, green_pin, blue_pin = board.D13, board.D19, board.D26
+#    led = RGBLed(red_pin, green_pin, blue_pin)
 
 # setup NosePoke LED cue
 lickLED = [2, 2] #port CL, channel 2
@@ -570,7 +574,7 @@ exp_init_time = time.time()
 startIPI = exp_init_time
 
 # Turn on white LED to set up the start of experiment
-if useLED == 'True' or useLED == 'Cue': led.white_on()
+#if useLED == 'True' or useLED == 'Cue': led.white_on()
 
 #%% Open the trial loop
 cleanRun = False
