@@ -41,10 +41,6 @@ else:
     raise OSError("Unsupported platform")
 
 #%% Local pi functions
-from bipolar_class import Motor
-from bipolar_class import rotate_dir
-from rgbled_class import RGBLed
-from turn_motor import *
 import CameraControl
 import MCC_Setup; mcc = MCC_Setup.MCCInterface()
 
@@ -638,13 +634,13 @@ try:
             if current_poke == 1 and last_poke == 0: # 0 indicates poking
                 new_lick = time.time() #save the time of the new lick onset. was beam_break
                 if (useLED == 'True'): setBit(portType=lickLED[0], channel=lickLED[1], value=1)
-                setBit(portType=lickTTL[0], channel=lickTTL[1], value=1)
+                #setBit(portType=lickTTL[0], channel=lickTTL[1], value=1)
                 
             # Next check if transitioned from poke to not poke.
             if current_poke == 0 and last_poke == 1:
                 off_lick = time.time() #save the time the lick sensor stops. was beam_unbroken
                 if (useLED == 'True'): setBit(portType=lickLED[0], channel=lickLED[1], value=0)
-                setBit(portType=lickTTL[0], channel=lickTTL[1], value=0)
+                #setBit(portType=lickTTL[0], channel=lickTTL[1], value=0)
 
                 if (off_lick - new_lick > 0.02) and (off_lick - new_lick < 0.12): # to avoid noise (from motor)- induced licks TODO: See if these limits can be tuned tighter. Also, add in an output of the number of filtered licks
                     licks[this_spout][this_trial_num].append(round((new_lick-last_lick)*1000))
@@ -656,7 +652,7 @@ try:
                     print('Lick_{}'.format(len(licks[this_spout][-1])))
     
             # Update last state and wait a short period before repeating.
-            last_poke = getBit(portType=lickSensor[0], channel=lickSensor[1])
+            last_poke = current_poke
             time.sleep(0.001)
             
         #Start the clock for IPI
