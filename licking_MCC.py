@@ -132,9 +132,9 @@ def step_motor(motor_channels, steps, delay=0.01, direction=0):
     stepped = 0
     while (stepped < steps) and not stop_motor.is_set():
     #for _ in range(steps):
-        #if stop_motor.is_set():
+        #if stop_motor.is_set(): #Redundant check of stop_motor
         #    break
-        print(f'Steps: {stepped}, stop_motor: {stop_motor}')
+        #print(f'Steps: {stepped}, stop_motor: {stop_motor}') #diagnostic
         # Get the current step from the sequence
         step = step_sequence[current_step_index]
 
@@ -611,6 +611,7 @@ try:
         # empty list to save licks for each trial
         this_spout = 'Position {}'.format(spoutN)
         licks[this_spout].append([])
+        filteredLicks = 0
         # get the number of current trial for that particular spout
         this_trial_num = len(licks[this_spout]) - 1 
 
@@ -654,10 +655,13 @@ try:
                         if useCamera == 'True': camera.saveBufferAndCapture(duration=trialTimeLimit, title=f'{subjID}_trial{trialN}', outputFolder=dat_folder, start_time = trial_init_time)
                     last_lick = new_lick
                     print('Lick_{}'.format(len(licks[this_spout][-1])))
+                else:
+                    filteredLicks += 1
+                    print(f'Rejected lick: {filteredLicks}')
     
             # Update last state and wait a short period before repeating.
             last_poke = current_poke
-            time.sleep(0.001)
+            #time.sleep(0.001)
             
         #Start the clock for IPI
         startIPI = time.time()
