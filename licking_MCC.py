@@ -618,13 +618,13 @@ try:
         # detecting the current status of touch sensor
         last_poke = getBit(portType=lickSensor[0], channel=lickSensor[1])
         print("Lick sensor is clear") if not last_poke else print ("Lick sensor is blocked")
-        while last_poke: # stay here if beam broken
+        while last_poke: # stay here if lick sensor is touched
             last_poke = getBit(portType=lickSensor[0], channel=lickSensor[1]) # make sure nose-poke is not blocked when starting
         
         #Save Trial Start Time
         trial_start_time = time.time()
         trial_init_time = trial_start_time
-        last_lick = trial_start_time #was last_break
+        last_lick = trial_start_time
         trialTimeLimit = MaxWaitTime[trialN] #Initially set the trial time limit to the max wait for this trial
         print('Start detecting licks/nosepokes')
         #Start the camera
