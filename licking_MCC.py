@@ -306,8 +306,14 @@ with open(timeFile, "w") as timeKeeper:
     timeKeeper.write('')
 
 # Get the longest character width provided to stimulus and concentration
-padStim = max([len(str(stimN)) for stimN in tastes]) + 1
-padConc = max([len(str(stimN)) for stimN in concs]) + 1
+try:
+    padStim = max([len(str(stimN)) for stimN in tastes]) + 1
+except:
+    padStim = 1
+try:
+    padConc = max([len(str(stimN)) for stimN in concs]) + 1
+except:
+    padConc = 1
 padLat = len(str(round(max(MaxWaitTime)*1000))) + 1
 
 if 0: # This is strictly for testing outputs and should be disabled or removed for actual sessions
