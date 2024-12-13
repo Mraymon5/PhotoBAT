@@ -153,11 +153,11 @@ class DavRun:
         
         # Settings imported from device parameters
         self.boardNum = int([line[1] for line in paramsData if 'boardNum' in line[0]][0])
-        self.shutterInitSteps = int([line[1] for line in paramsData if 'shutterInitSteps' in line[0]][0])
+        self.shutterInitSteps = round([line[1] for line in paramsData if 'shutterInitSteps' in line[0]][0],0)
         self.shutterRunSteps = int([line[1] for line in paramsData if 'shutterRunSteps' in line[0]][0])
         self.shutterDir = int([line[1] for line in paramsData if 'shutterDir' in line[0]][0])
         self.shutterSpeed = ([line[1] for line in paramsData if 'shutterSpeed' in line[0]][0])
-        self.tableInitSteps = int([line[1] for line in paramsData if 'tableInitSteps' in line[0]][0])
+        self.tableInitSteps = round([line[1] for line in paramsData if 'tableInitSteps' in line[0]][0],0)
         self.tableRunSteps = int([line[1] for line in paramsData if 'tableRunSteps' in line[0]][0])
         self.tableDir = int([line[1] for line in paramsData if 'tableDir' in line[0]][0])
         self.tableSpeed = ([line[1] for line in paramsData if 'tableSpeed' in line[0]][0])
