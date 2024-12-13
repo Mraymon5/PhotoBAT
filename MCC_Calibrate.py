@@ -71,7 +71,7 @@ def update_parameters():
 try:
     MCC.d_config_port(board_num = Dav.boardNum, port = 0, direction = 'output')
     MCC.d_out(board_num = Dav.boardNum, port = 0, data = 0b11111111)
-    print(MCC.d_in(board_num = Dav.boardNum, port = 0))
+    print(f'Motor Port is: {MCC.d_in(board_num = Dav.boardNum, port = 0)}')
     # GUI setup
     root = tk.Tk()
     root.title("Motor and Sensor Calibration")
@@ -149,5 +149,7 @@ try:
     
     root.mainloop()
 finally:
+    print("Shutting Down...")
     MCC.d_out(board_num = Dav.boardNum, port = 0, data = 0b11111111)
     MCC.d_close_port()
+    print("Done.")
