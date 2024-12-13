@@ -246,7 +246,7 @@ class DavRun:
         #global stop_motor
         if Init:
             print("Backing up...")
-            if MCC.getBit(portType = 1, channel = self.shutterMagChannel):
+            if self.MCC.getBit(portType = 1, channel = self.shutterMagChannel):
                 self.step_motor(motor_channels = self.shutterChannels, steps = 50, direction = self.shutterDir, delay = self.shutterSpeed)
             print("Done. Advancing to mag switch...")
             self.stop_motor.clear()
