@@ -22,7 +22,7 @@ isTrue = lambda x: str(str(x).lower() in {'1', 'true', 't'})
 def update_sensor_display(sensor_labels):
     readTime = time.time()
     readSens = MCC.d_in(0, 1)
-    readDelay = f"Read Delay: {round(time.time() - readTime, 4)}"
+    readDelay = f"Read Delay: {round(time.time() - readTime, 4):.3f}"
     lSens = f"Lick Sensor: {MCC.getBit(portType=1, channel=7, sensorState=readSens)}"
     sMagSens = f"Shutter Mag: {MCC.getBit(portType=1, channel=5, sensorState=readSens)}"
     tMagSens = f"Table Mag: {MCC.getBit(portType=1, channel=4, sensorState=readSens)}"
