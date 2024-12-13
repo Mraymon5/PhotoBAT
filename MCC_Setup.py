@@ -281,7 +281,7 @@ class DavRun:
             while not self.MCC.getBit(portType = 1, channel = self.tableMagChannel):
                 time.sleep(0.01)
             self.stop_motor.set()  # Stop the mtotor loop
-            print(f'Main Loop Stop_Motor: {stop_motor}')
+            print(f'Main Loop Stop_Motor: {self.stop_motor}')
             if motor_thread.is_alive():
                 motor_thread.join()
             self.stop_motor.clear()
