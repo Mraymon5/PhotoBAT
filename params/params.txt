@@ -1,7 +1,7 @@
 [Trial Parameters]
 NumberOfTubes=4
 Solutions=Water,,,
-Concentrations=,,,
+Concentrations=0,,,
 NumberOfPres=10
 LickTime=10000,10000,10000,10000,10000,10000,10000,10000,10000,10000
 LickCount=,,,,,,,,,
