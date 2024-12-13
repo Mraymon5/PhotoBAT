@@ -72,11 +72,9 @@ try:
     MCC.d_config_port(board_num = Dav.boardNum, port = 0, direction = 'output')
     MCC.d_config_port(board_num = Dav.boardNum, port = 1, direction = 'input')
     MCC.d_out(board_num = Dav.boardNum, port = 0, data = 0b11111111)
-    print(f'Motor Port is: {MCC.d_in(board_num = Dav.boardNum, port = 0)}')
     # GUI setup
     root = tk.Tk()
     root.title("Motor and Sensor Calibration")
-    print(f'Motor Port is: {MCC.d_in(board_num = Dav.boardNum, port = 0)}')
     
     # Shutter control section
     shutterFrame = ttk.LabelFrame(root, text="Shutter Control")
