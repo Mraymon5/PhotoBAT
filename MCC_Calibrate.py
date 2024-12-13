@@ -76,6 +76,7 @@ try:
     root = tk.Tk()
     root.title("Motor and Sensor Calibration")
     MCC.d_config_port(board_num = Dav.boardNum, port = 1, direction = 'input')
+    print(f'Motor Port is: {MCC.d_in(board_num = Dav.boardNum, port = 0)}')
     
     # Shutter control section
     shutterFrame = ttk.LabelFrame(root, text="Shutter Control")
