@@ -1,0 +1,11 @@
+#Davis Rig Hardware Parameters. You probably don't want to edit this manually; try MCC_Test.py instead.
+boardNum = 0 #MCC board connected to the Davis Rig
+shutterInitSteps = -50 #The number of steps from the mag sensor to the "closed" position
+shutterRunSteps = 100 #The number of steps to open/close the shutter
+shutterDir = 1 #The base direction of the shutter
+shutterSpeed = 0.005 #Delay between steps when driving shutter
+tableInitSteps = -17 #The number of steps from the mag sensor to the home position
+tableRunSteps = 125 #The number of steps between bottle positions
+tableDir = 0 #The base direction of the table
+tableSpeed = 0.005 #Delay between steps when driving table
+
