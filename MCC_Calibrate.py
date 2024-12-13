@@ -149,4 +149,5 @@ try:
     
     root.mainloop()
 finally:
+    MCC.d_out(board_num = Dav.boardNum, port = 0, data = 0b11111111)
     MCC.d_close_port()
