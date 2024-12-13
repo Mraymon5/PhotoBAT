@@ -38,12 +38,12 @@ def update_sensor_display(sensor_labels):
 def update_parameters():
     # Example of retrieving values from the text boxes
     
-    shutterInitSteps = round(sInitEnt.get()) #The number of steps from the mag sensor to the "closed" position
+    shutterInitSteps = round(float(sInitEnt.get())) #The number of steps from the mag sensor to the "closed" position
     shutterRunSteps = int(sRunEnt.get()) #The number of steps to open/close the shutter
     shutterDir = int(sDirEnt.get()) #The base direction of the shutter
     shutterSpeed = float(sSpdEnt.get())
 
-    tableInitSteps = round(tInitEnt.get()) #The number of steps from the mag sensor to the home position
+    tableInitSteps = round(float(tInitEnt.get())) #The number of steps from the mag sensor to the home position
     tableRunSteps = int(tRunEnt.get()) #The number of steps between bottle positions
     tableDir = int(tDirEnt.get()) #The base direction of the table
     tableSpeed = float(tSpdEnt.get())
