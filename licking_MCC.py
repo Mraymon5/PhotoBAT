@@ -29,10 +29,7 @@ if sys.platform.startswith('linux'):
 #    from uldaq import DaqDevice, DioInfo, DigitalPortIoType, InterfaceType
 #    import uldaq as ul
     import board
-    from bipolar_class import Motor
-    from bipolar_class import rotate_dir
     from rgbled_class import RGBLed
-    from turn_motor import *
     print("Using uldaq for Linux")
 elif sys.platform.startswith('win'):
 #    from mcculw import ul
@@ -43,28 +40,11 @@ elif sys.platform.startswith('win'):
 else:
     raise OSError("Unsupported platform")
 
-#%% Local pi functions
+#%% Local py functions
 import CameraControl
-import MCC_Setup; mcc = MCC_Setup.MCCInterface()
+import MCC_Setup; mcc = MCC_Setup.MCCInterface(); dav = MCC_Setup.DavRun()
 
 #%% Helper Functions
-# Function to read in a specific bit from the MCC sensor
-def getBit(portType, channel, sensorState = None): #sensor_state
-    if sensorState is None:
-        sensorState = mcc.d_in(board_num, portType)
-    return (sensorState >> channel) & 1
-
-def setBit(portType, channel, value):
-    # Read the current state of the port
-    current_state = mcc.d_in(board_num, portType)
-    # Set the specific bit without altering others
-    if value:
-        new_state = current_state | (1 << channel) #set a channel High
-    else:
-        new_state = current_state & ~(1 << channel) #set a channel Low
-    # Write the new state back to the port
-    mcc.d_out(board_num, portType, new_state)
-
 # Function to read in values from params file and save them as int or None
 def intOrNone(value, factor=1):
     try:
@@ -75,152 +55,8 @@ def intOrNone(value, factor=1):
 # Function to allow flexible inputs for True in user-supplied strings
 isTrue = lambda x: str(str(x).lower() in {'1', 'true', 't'})
 
-# Motor control parameters and functions
-board_num = 0
-last_step_index = {} # Global variable to keep track of the last step index for each motor
-stop_motor = threading.Event()
-motor_stopped = threading.Event()
-
-shutterChannels = [0, 1, 2, 3]  # Motor 1 on channels A0-A3
-shutterMagChannel = 5 #Mag sensor on channel B5
-shutterInitSteps = -50 #The number of steps from the mag sensor to the "closed" position
-shutterRunSteps = 100 #The number of steps to open/close the shutter
-shutterDir = 1 #The base direction of the shutter
-shutterSpeed = 0.005
-
-tableChannels = [4, 5, 6, 7]  # Motor 2 on channels A4-A7
-tableMagChannel = 4 #Mag sensor on channel B4
-tableInitSteps = -17 #The number of steps from the mag sensor to the home position
-tableRunSteps = 125 #The number of steps between bottle positions
-tableDir = 0 #The base direction of the table
-tableSpeed = 0.005
-
-def step_motor(motor_channels, steps, delay=0.01, direction=0):
-    global last_step_index
-    global stop_motor
-    motor_key = tuple(motor_channels)
-    # Full-step sequence
-    step_sequence = [
-        #0b1110,  # Step 0.5
-        0b1010,  # Step 1
-        #0b1011,  # Step 1.5
-        0b1001,  # Step 2
-        #0b1101,  # Step 2.5
-        0b0101,  # Step 3
-        #0b0111,  # Step 3.5
-        0b0110,  # Step 4
-    ]
-
-    # Reverse the sequence for backward direction
-    if (steps < 0):
-        steps = abs(steps)
-        direction = not direction
-    
-    if direction:
-        step_sequence = step_sequence[::-1]
-        
-    # Read in the current state of the output to avoid writing over the other motor
-    current_state = mcc.d_in(board_num=board_num, port = 0)
-    
-    # Initialize last step index for the motor if not already set
-    if motor_key not in last_step_index:
-        last_step_index[motor_key] = 0  # Start at step 0 (step 1 in the sequence)
-
-    # Start from the last step index
-    current_step_index = last_step_index[motor_key]
-    
-    stepped = 0
-    while (stepped < steps) and not stop_motor.is_set():
-    #for _ in range(steps):
-        #if stop_motor.is_set(): #Redundant check of stop_motor
-        #    break
-        #print(f'Steps: {stepped}, stop_motor: {stop_motor}') #diagnostic
-        # Get the current step from the sequence
-        step = step_sequence[current_step_index]
-
-        # Clear the motor's 4 bits using a mask
-        mask = ~(0b1111 << motor_channels[0])
-        current_state &= mask  # Clears the 4 bits for the motor
-
-        # Set the new 4-bit step sequence shifted to the motor channels
-        new_state = current_state | (step << motor_channels[0])
-
-        # Write the updated state to the port
-        mcc.d_out(board_num = board_num, port = 0, data = new_state)
-        time.sleep(delay)
-
-        # Move to the next step in the sequence
-        current_step_index = (current_step_index + 1) % len(step_sequence)
-        stepped += 1
-    motor_stopped.set()
-
-    # Update the last step index for the motor
-    last_step_index[motor_key] = current_step_index
-    
-    # Set motor to idle
-    step = 0b1111
-    mask = ~(0b1111 << motor_channels[0]) # Clear the motor's 4 bits using a mask
-    current_state &= mask  # Clears the 4 bits for the motor
-    new_state = current_state | (step << motor_channels[0]) # Set the new 4-bit step sequence shifted to the motor channels
-    mcc.d_out(board_num = board_num, port = 0, data = new_state) # Write the updated state to the port
-    stop_motor.clear()
-    
-def moveShutter(Open = False, Init = False):
-    global stop_motor
-    if Init:
-        print("Backing up...")
-        if getBit(portType = 1, channel = shutterMagChannel):
-            step_motor(motor_channels = shutterChannels, steps = 50, direction = shutterDir, delay=shutterSpeed)
-        print("Done. Advancing to mag switch...")
-        stop_motor.clear()
-        motor_thread = threading.Thread(target=step_motor, args=(shutterChannels, 10000, shutterSpeed, not shutterDir))
-        motor_thread.start()
-        while not getBit(portType = 1, channel = shutterMagChannel):
-            time.sleep(0.01)
-        stop_motor.set()  # Stop the motor loop
-        print(f'Main Loop Stop_Motor: {stop_motor}')
-        if motor_thread.is_alive():
-            motor_thread.join()
-        stop_motor.clear()
-        motor_stopped.clear()
-        print("Done. Moving to home position...")
-        step_motor(motor_channels = shutterChannels, steps = shutterInitSteps, direction = shutterDir)
-        print("Done. Shutter initialized.")
-    else:
-        if Open:
-            step_motor(motor_channels = shutterChannels, steps = shutterRunSteps, direction = shutterDir, delay = shutterSpeed)
-        else:
-            step_motor(motor_channels = shutterChannels, steps = shutterRunSteps, direction = not shutterDir, delay = shutterSpeed)
-
-def moveTable(movePos = 0, Init = False):
-    global stop_motor
-    if Init:
-        print("Backing up...")
-        step_motor(motor_channels = tableChannels, steps = 50, direction = tableDir, delay=tableSpeed)
-        print("Done. Advancing to mag switch...")
-        stop_motor.clear()
-        motor_thread = threading.Thread(target=step_motor, args=(tableChannels, 10000, tableSpeed, not tableDir))
-        motor_thread.start()
-        while not getBit(portType = 1, channel = tableMagChannel):
-            time.sleep(0.01)
-        stop_motor.set()  # Stop the mtotor loop
-        print(f'Main Loop Stop_Motor: {stop_motor}')
-        if motor_thread.is_alive():
-            motor_thread.join()
-        stop_motor.clear()
-        print("Done. Moving to home position...")
-        step_motor(motor_channels = tableChannels, steps = tableInitSteps, direction = tableDir)
-        print("Done. Table initialized.")
-    else:
-        if movePos > 0:
-            step_motor(motor_channels = tableChannels, steps = movePos*tableRunSteps, direction = tableDir, delay = tableSpeed)
-        else:
-            step_motor(motor_channels = tableChannels, steps = abs(movePos)*tableRunSteps, direction = not tableDir, delay = tableSpeed)
-
 #%% Setup Session Parameters
 
-#TODO: Add in a option to set max licks per trial instead of max time, DONE, untested
-#TODO: I think the max licks may break compatibility with the camera trigger in some circumstances, FIXED Untested
 #TODO: Make the Gui more friendly, DONE, untested
 
 if __name__ == "__main__":
@@ -502,14 +338,14 @@ print('Taste Sequence: {}'.format(TubeSeq))
 # Set up MCC ports
 try:
     # Set Port A as output for motor relays
-    mcc.d_config_port(board_num = board_num, port = 0, direction = 'output')
+    mcc.d_config_port(board_num = dav.boardNum, port = 0, direction = 'output')
 
     # Set Port B as input for 5V TTL sensors
-    mcc.d_config_port(board_num = board_num, port = 1, direction = 'input')
+    mcc.d_config_port(board_num = dav.boardNum, port = 1, direction = 'input')
 
     # Set Port C as output for LED indicators or other outputs
-    mcc.d_config_port(board_num = board_num, port = 2, direction = 'output')
-    mcc.d_config_port(board_num = board_num, port = 3, direction = 'output')
+    mcc.d_config_port(board_num = dav.boardNum, port = 2, direction = 'output')
+    mcc.d_config_port(board_num = dav.boardNum, port = 3, direction = 'output')
 
     print("Ports configured successfully.")
 
@@ -517,25 +353,12 @@ except mcc.ul.ULError as e:
     print(f"Error configuring ports: {e}")
 
 # Initialize Table and Shutter
-moveShutter(Init=True)
-moveTable(Init=True)
+dav.moveShutter(Init=True)
+dav.moveTable(Init=True)
 
 
 # setup motor [40 pin header for newer Raspberry Pi's]
-step = 24       # Pin assigned to motor controller steps
-direction = 23  # Pin assigned to motor controller direction
-enable = 25     # Not required - leave unconnected
-ms1 = 18
-ms2 = 15
-ms3 = 14
-he_pin = 16     # Hall effect pin
 cur_pos = 1     # Initial position of table should be 1
-
-# setup input for beam break detection
-lickSensor = [1, 7] #port B, channel 7
-
-#getBit(portType=lickSensor[0], channel=lickSensor[1])
-
 
 # setup RGB LEDs, not implemented
 #if sys.platform.startswith('linux'):
@@ -573,7 +396,7 @@ print('\n=== Press Ctrl-C to abort session ===\n')
 exp_init_time = time.time()
 startIPI = exp_init_time
 
-# Turn on white LED to set up the start of experiment
+# Turn on white LED to set up the start of experiment, not implemented
 #if useLED == 'True' or useLED == 'Cue': led.white_on()
 
 #%% Open the trial loop
@@ -589,20 +412,20 @@ try:
 
         # rotate motor to move spout outside licking hole
         dest_pos = TubeSeq[trialN]
-        moveTable(movePos=dest_pos-cur_pos)
+        dav.moveTable(movePos=dest_pos-cur_pos)
         cur_pos = dest_pos
 
         #Run Trial IPI
         time.sleep(IPITimes[trialN] - (startIPI - time.time()))
 
         # Open Shutter, in a thread so that other operations can proceed
-        shutterThread = threading.Thread(target=moveShutter(Open=True))
+        shutterThread = threading.Thread(target=dav.moveShutter, kwargs={'Open':True})
         shutterThread.start()
     
         # turn on nose poke LED cue and send signal to intan
         if useLED == 'Cue':
             pass #Not implemented yet
-        setBit(portType=trialTTL[0], channel=trialTTL[1], value=1)
+        mcc.setBit(portType=trialTTL[0], channel=trialTTL[1], value=1)
         
         # on-screen reminder
         print("\n")
@@ -616,10 +439,10 @@ try:
         this_trial_num = len(licks[this_spout]) - 1 
 
         # detecting the current status of touch sensor
-        last_poke = getBit(portType=lickSensor[0], channel=lickSensor[1])
+        last_poke = mcc.getBit(portType=dav.lickSensor[0], channel=dav.lickSensor[1])
         print("Lick sensor is clear") if not last_poke else print ("Lick sensor is blocked")
         while last_poke: # stay here if lick sensor is touched
-            last_poke = getBit(portType=lickSensor[0], channel=lickSensor[1]) # make sure nose-poke is not blocked when starting
+            last_poke = mcc.getBit(portType=dav.lickSensor[0], channel=dav.lickSensor[1]) # make sure nose-poke is not blocked when starting
         
         #Save Trial Start Time
         trial_start_time = time.time()
@@ -633,19 +456,19 @@ try:
         while ((time.time() - trial_init_time < trialTimeLimit) if LickTime[trialN] is not None else True) and \
               (time.time() - exp_init_time < SessionTimeLimit) and \
               (len(licks[this_spout][this_trial_num]) < LickCount[trialN] if LickCount[trialN] is not None else True):
-            current_poke = getBit(portType=lickSensor[0], channel=lickSensor[1])
+            current_poke = mcc.getBit(portType=dav.lickSensor[0], channel=dav.lickSensor[1])
             
             # First check if transitioned from not poke to poke.
             if current_poke == 1 and last_poke == 0: # 0 indicates poking
                 new_lick = time.time() #save the time of the new lick onset. was beam_break
-                if (useLED == 'True'): setBit(portType=lickLED[0], channel=lickLED[1], value=1)
-                #setBit(portType=lickTTL[0], channel=lickTTL[1], value=1)
+                if (useLED == 'True'): mcc.setBit(portType=lickLED[0], channel=lickLED[1], value=1)
+                #mcc.setBit(portType=lickTTL[0], channel=lickTTL[1], value=1)
                 
             # Next check if transitioned from poke to not poke.
             if current_poke == 0 and last_poke == 1:
                 off_lick = time.time() #save the time the lick sensor stops. was beam_unbroken
-                if (useLED == 'True'): setBit(portType=lickLED[0], channel=lickLED[1], value=0)
-                #setBit(portType=lickTTL[0], channel=lickTTL[1], value=0)
+                if (useLED == 'True'): mcc.setBit(portType=lickLED[0], channel=lickLED[1], value=0)
+                #mcc.setBit(portType=lickTTL[0], channel=lickTTL[1], value=0)
 
                 if (off_lick - new_lick > 0.02) and (off_lick - new_lick < 0.12): # to avoid noise (from motor)- induced licks TODO: See if these limits can be tuned tighter. Also, add in an output of the number of filtered licks
                     licks[this_spout][this_trial_num].append(round((new_lick-last_lick)*1000))
@@ -667,18 +490,18 @@ try:
         startIPI = time.time()
     
         # Close Shutter
-        moveShutter(Open=False)
+        dav.moveShutter(Open=False)
         
         # Update LEDs and Intan outs
         if useLED == 'Cue':
             pass
         
-        if useLED == 'True': setBit(portType=lickLED[0], channel=lickLED[1], value=0)
+        if useLED == 'True': mcc.setBit(portType=lickLED[0], channel=lickLED[1], value=0)
         time.sleep(0.001)
-        setBit(portType=trialTTL[0], channel=trialTTL[1], value=0)
+        mcc.setBit(portType=trialTTL[0], channel=trialTTL[1], value=0)
         
         # Turn off nosepoke detection
-        setBit(portType=lickTTL[0], channel=lickTTL[1], value=0)
+        mcc.setBit(portType=lickTTL[0], channel=lickTTL[1], value=0)
         
         # Reset the Camera
         if useCamera == 'True':
@@ -718,13 +541,13 @@ finally:
         print("Session interrupted")
         
     # turn off LEDs and Intan outs
-    setBit(portType=lickLED[0], channel=lickLED[1], value=0)
-    setBit(portType=trialTTL[0], channel=trialTTL[1], value=0)
-    setBit(portType=lickTTL[0], channel=lickTTL[1], value=0)
+    mcc.setBit(portType=lickLED[0], channel=lickLED[1], value=0)
+    mcc.setBit(portType=trialTTL[0], channel=trialTTL[1], value=0)
+    mcc.setBit(portType=lickTTL[0], channel=lickTTL[1], value=0)
     
     # Return spout to home, close shutter
-    moveTable(Init=True)
-    moveShutter(Init=True)   
+    dav.moveTable(Init=True)
+    dav.moveShutter(Init=True)   
     mcc.d_close_port()
     
     #Shut down camera
