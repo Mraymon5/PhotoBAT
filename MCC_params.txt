@@ -8,4 +8,5 @@ tableInitSteps = -17 #The number of steps from the mag sensor to the home positi
 tableRunSteps = 125 #The number of steps between bottle positions
 tableDir = 0 #The base direction of the table
 tableSpeed = 0.005 #Delay between steps when driving table
-
+paramsFile = /home/user/PhotoBAT-main/params.txt #Path to last params file
+outputFolder = /home/user/Data/ # Path to output directory
