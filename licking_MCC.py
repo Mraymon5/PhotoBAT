@@ -56,8 +56,9 @@ def intOrNone(value, factor=1):
 isTrue = lambda x: str(str(x).lower() in {'1', 'true', 't'})
 
 #%% Setup Session Parameters
-
-#TODO: Make the Gui more friendly, DONE, untested
+#TODO: Add a tkinter Gui (in progress: Main_Menu.py)
+#TODO: There may be an issue with the program assuming that bottles are only in even-numbered slots
+#TODO: Gui for during the session that shows timers, licks, etc.
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = 'Script for running a BAT session with photobeam lickometer')
@@ -130,7 +131,7 @@ if ParamsFile is not None:
         useCamera = useCamera
     
     tastes = [stimN for stimN in Solutions if len(stimN) > 0]
-    taste_positions = [2*int(stimN+1) for stimN in range(len(Solutions)) if len(Solutions[stimN]) > 0]
+    taste_positions = [int(stimN) for stimN in range(len(Solutions)) if len(Solutions[stimN]) > 0]
     concs = [stimN for stimN in Concentrations if len(stimN) > 0]
     
     #Setup Messages
@@ -221,7 +222,7 @@ else:
     
     # Setting up spouts for each trial
     tastes = [i for i in t_list if len(i) > 0]
-    taste_positions = [2*int(i+1) for i in range(len(t_list)) if len(t_list[i]) > 0]
+    taste_positions = [int(i) for i in range(len(t_list)) if len(t_list[i]) > 0]
     
     concs = easygui.multenterbox('Please enter the concentration of each taste.',
                                   'Concentration List',
@@ -339,8 +340,6 @@ print([f'Spout {taste_positions[i]}: {tastes[i]}' for i in range(len(tastes))])
 print('Taste Sequence: {}'.format(TubeSeq))
 
 #%% Setup Hardware
-#TODO: replace all of this with MCC
-
 # Set up MCC ports
 try:
     # Set Port A as output for motor relays
@@ -362,7 +361,6 @@ except mcc.ul.ULError as e:
 dav.moveShutter(Init=True)
 dav.moveTable(Init=True)
 
-
 # setup motor [40 pin header for newer Raspberry Pi's]
 cur_pos = 1     # Initial position of table should be 1
 
@@ -381,7 +379,6 @@ lickTTL = [2, 0] #port CL, channel 0
 
 # setup TTL out for trial signal
 trialTTL = [2, 1] #port CL, channel 1
-
 
 # Setup Camera: test settings with CamerControl.preview
 if useCamera == 'True':
