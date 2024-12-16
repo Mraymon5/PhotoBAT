@@ -58,3 +58,5 @@ pip install easygui
 pip install RPI.GPIO
 pip install adafruit-blinka
 pip install opencv-python
+pip install tkintertable
+pip install pandas
