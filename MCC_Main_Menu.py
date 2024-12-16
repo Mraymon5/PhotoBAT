@@ -11,9 +11,8 @@ import pandas
 import subprocess
 
 #Import Scripts
-os.chdir('/home/ramartin/PhotoBAT-main/')
 from MakeParams import makeParams
-from MCC_Test_testier import rigConfig #TODO:rename this probably
+from MCC_Calibrate import rigConfig #TODO:rename this probably
 
 #%% Import Variables
 base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
