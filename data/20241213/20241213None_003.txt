@@ -1,0 +1,12 @@
+C:\Users\DavisRig\testBAT\data\20241213\20241213None_003.txt
+Version #, 5.90
+System ID, 1
+Start Date, 2024/12/13
+Start Time, 12:59:16.211
+Animal ID, None
+Condition, 
+Max Wait for first Lick is, 60.0
+Max Retries / Presentation, 0
+Max Number Presentations, 10
+PRESENTATION,TUBE,CONCENTRATION,SOLUTION,IPI,LENGTH,LICKS,Latency,Retries
+

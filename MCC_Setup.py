@@ -144,6 +144,8 @@ class DavRun:
         script_dir = os.path.dirname(os.path.abspath(__file__))
         self.params_path = os.path.join(script_dir, 'MCC_params.txt')
         self.MCC = MCCInterface()
+        self.ShutterIsOpen = False
+        self.TablePosition = 1
         
         with open(self.params_path, 'r') as params:
             paramsData = params.readlines()
@@ -245,10 +247,10 @@ class DavRun:
     def moveShutter(self, Open = False, Init = False):
         #global stop_motor
         if Init:
-            print("Backing up...")
+            print("Backing up shutter...")
             if self.MCC.getBit(portType = 1, channel = self.shutterMagChannel):
                 self.step_motor(motor_channels = self.shutterChannels, steps = 50, direction = self.shutterDir, delay = self.shutterSpeed)
-            print("Done. Advancing to mag switch...")
+            print("Done. Advancing shutter to mag switch...")
             self.stop_motor.clear()
             motor_thread = threading.Thread(target= self.step_motor, args=(self.shutterChannels, 10000, self.shutterSpeed, not self.shutterDir))
             motor_thread.start()
@@ -260,21 +262,32 @@ class DavRun:
                 motor_thread.join()
             self.stop_motor.clear()
             self.motor_stopped.clear()
-            print("Done. Moving to home position...")
+            print("Done. Moving shutter to home position...")
             self.step_motor(motor_channels = self.shutterChannels, steps = self.shutterInitSteps, direction = self.shutterDir)
+            self.ShutterIsOpen = False
             print("Done. Shutter initialized.")
         else:
             if Open:
-                self.step_motor(motor_channels = self.shutterChannels, steps = self.shutterRunSteps, direction = self.shutterDir, delay = self.shutterSpeed)
+                if self.ShutterIsOpen:
+                    print("Shutter already open.")
+                else:    
+                    self.step_motor(motor_channels = self.shutterChannels, steps = self.shutterRunSteps, direction = self.shutterDir, delay = self.shutterSpeed)
+                    self.ShutterIsOpen = True
+                    print("Shutter open.")
             else:
-                self.step_motor(motor_channels = self.shutterChannels, steps = self.shutterRunSteps, direction = not self.shutterDir, delay = self.shutterSpeed)
+                if self.ShutterIsOpen:
+                    self.step_motor(motor_channels = self.shutterChannels, steps = self.shutterRunSteps, direction = not self.shutterDir, delay = self.shutterSpeed)
+                    self.ShutterIsOpen = False
+                    print("Shutter closed.")
+                else:
+                    print("Shutter already closed.")
 
     def moveTable(self, movePos = 0, Init = False):
         global stop_motor
         if Init:
-            print("Backing up...")
+            print("Backing up table...")
             self.step_motor(motor_channels = self.tableChannels, steps = 50, direction = self.tableDir, delay = self.tableSpeed)
-            print("Done. Advancing to mag switch...")
+            print("Done. Advancing table to mag switch...")
             self.stop_motor.clear()
             motor_thread = threading.Thread(target=self.step_motor, args=(self.tableChannels, 10000, self.tableSpeed, not self.tableDir))
             motor_thread.start()
@@ -287,12 +300,23 @@ class DavRun:
             self.stop_motor.clear()
             print("Done. Moving to home position...")
             self.step_motor(motor_channels = self.tableChannels, steps = self.tableInitSteps, direction = self.tableDir)
+            self.TablePosition = 1
             print("Done. Table initialized.")
         else:
             if movePos > 0:
-                self.step_motor(motor_channels = self.tableChannels, steps = movePos*self.tableRunSteps, direction = self.tableDir, delay = self.tableSpeed)
+                if self.TablePosition+movePos <= 16:
+                    self.step_motor(motor_channels = self.tableChannels, steps = movePos*self.tableRunSteps, direction = self.tableDir, delay = self.tableSpeed)
+                    self.TablePosition = self.TablePosition + movePos
+                    print(f"Position is: {self.TablePosition}")
+                else:
+                    print("Requested move exceeds maximum position")
             else:
-                self.step_motor(motor_channels = self.tableChannels, steps = abs(movePos)*self.tableRunSteps, direction = not self.tableDir, delay = self.tableSpeed)
+                if self.TablePosition+movePos >= 1:
+                    self.step_motor(motor_channels = self.tableChannels, steps = abs(movePos)*self.tableRunSteps, direction = not self.tableDir, delay = self.tableSpeed)
+                    self.TablePosition = self.TablePosition + movePos
+                    print(f"Position is: {self.TablePosition}")
+                else:
+                    print("Requested move exceeds minimum position")
 
 
 

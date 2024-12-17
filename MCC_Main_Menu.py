@@ -23,14 +23,16 @@ paramsData = [line.rstrip('\n') for line in paramsData]
 paramsData = [line.split('#')[0] for line in paramsData]
 paramsData = [line.split('=') for line in paramsData]
 paramsFile = ([line[1] for line in paramsData if 'paramsFile' in line[0]][0])
+paramsFile = paramsFile.strip()
 outputFolder = (([line[1] for line in paramsData if 'outputFolder' in line[0]][0]))
+outputFolder = outputFolder.strip()
 
 
 #%% Helper Functions
 # Function to read in values from params file and save them as int or None
 def intOrNone(value, factor=1):
     try:
-        return int(value)*factor # If the value in a givin position is a numeral, convert to int
+        return int(value)*factor # If the value in a given position is a numeral, convert to int
     except (ValueError, TypeError): # Otherwise return None
         return None
 
@@ -65,15 +67,17 @@ def select_paramsFile():
     paramsFolder = os.path.join(base_path, 'params/*')
     tempFile = easygui.fileopenbox(msg="Select a params file, or cancel for manual entry", default=paramsFolder)
     if tempFile is not None:
-        paramsFile = tempFile
+        paramsFile = os.path.normpath(tempFile)
         paramLabel.config(text=paramsFile)
         update_line_in_file(file_path = rigParamsFile, keyword="paramsFile =", new_value=f'paramsFile = {paramsFile} #Path to last params file')
 
 def create_paramsFile():
     global paramsFile
-    paramsFile = makeParams()
-    paramLabel.config(text=paramsFile)
-    update_line_in_file(file_path = rigParamsFile, keyword="paramsFile =", new_value=f'paramsFile = {paramsFile} #Path to last params file')
+    tempFile = makeParams(bool(davEnt.get()))
+    if tempFile != False:
+        paramsFile = tempFile
+        paramLabel.config(text=paramsFile)
+        update_line_in_file(file_path = rigParamsFile, keyword="paramsFile =", new_value=f'paramsFile = {paramsFile} #Path to last params file')
 
 
 def display_parameters():
@@ -117,8 +121,8 @@ def display_parameters():
     tastes = [stimN for stimN in Solutions if len(stimN) > 0]
     taste_positions = [int(stimN+1) for stimN in range(len(Solutions)) if len(Solutions[stimN]) > 0]
     concs = [stimN for stimN in Concentrations if len(stimN) > 0]
-    tasteList =  [Solutions[tubeN] for tubeN in TubeSeq]
-    concList =  [Concentrations[tubeN] for tubeN in TubeSeq]
+    tasteList =  [Solutions[tubeN-1] for tubeN in TubeSeq]
+    concList =  [Concentrations[tubeN-1] for tubeN in TubeSeq]
     stimList = [f'{concList[trialN]} {tasteList[trialN]}' for trialN in range(NTrials)]
     
     #Set Lick Time List
@@ -153,10 +157,10 @@ def display_parameters():
     if any(LickTime[trialN] is None and LickCount[trialN] is None for trialN in range(NTrials)):
         raise Exception("Both LickTime and LickCount are None for some trials")
 
-    trialData = pandas.DataFrame({'Trial':range(NTrials), 'Tube':TubeSeq, 'Conc':concList, 'Stim':tasteList, 'LickTime':LickTime, 'LickCount':LickCount,
+    trialData = pandas.DataFrame({'Trial':range(1,NTrials+1), 'Tube':TubeSeq, 'Conc':concList, 'Stim':tasteList, 'LickTime':LickTime, 'LickCount':LickCount,
                                   'IPI':IPITimes,'MaxWait':MaxWaitTime})    
         
-    paramDisp = tk.Tk()
+    paramDisp = tk.Toplevel(root)
     paramDisp.title("Session Parameters")
     frame = tk.Frame(paramDisp)
     frame.pack(fill="both", expand=True)
@@ -182,14 +186,25 @@ def selectOutput():
         outputLabel.config(text=outputFolder)
         update_line_in_file(file_path = rigParamsFile, keyword="outputFolder =", new_value=f'outputFolder = {outputFolder} #Path to last output directory')
 
+def runConfig():
+    if bool(davEnt.get()):
+        rigConfig()
+    else:
+        import rig_funcs
+        rig_funcs.fine_align()
+
 def runSession():
-    targetScript = "/home/ramartin/PhotoBAT-main/licking_MCC_test.py"
-    args = [ID_Ent, f'-p {paramsFile}', f'-o {outputFolder}']
+    if bool(davEnt.get()):
+        targetScript = os.path.join(base_path, 'licking_MCC.py')
+    else:
+        targetScript = os.path.join(base_path, 'licking_beambk_Camera.py')
+    args = [str(ID_Ent.get()),
+            "-p", paramsFile.strip(),
+            "-o", outputFolder.strip()]
     root.destroy()
-    result = subprocess.run(["python", targetScript] + args, capture_output=True,test=True)
+    result = subprocess.run(["python", targetScript] + args)
     print("Session Run:")
     print(result)
-
 
 #%% GUI Code
 root = tk.Tk()
@@ -228,9 +243,13 @@ tk.Button(OutputFrame, text="Select Folder", command=selectOutput).grid(row=2, c
 RunFrame = ttk.LabelFrame(root, text="Hardware Control")
 RunFrame.grid(row=2, column=0, padx=10, pady=10)
 #Button to run config
-tk.Button(RunFrame, text="Config Rig", command=rigConfig).grid(row=0, column=0, padx=10, pady=10)
+tk.Button(RunFrame, text="Config Rig", command=runConfig).grid(row=1, column=0, padx=10, pady=10)
 #Button to start session?
-tk.Button(RunFrame, text="Run Session", command=runSession).grid(row=0, column=1, padx=10, pady=10)
+tk.Button(RunFrame, text="Run Session", command=runSession).grid(row=1, column=1, padx=10, pady=10)
+#Button for whether this is a Davis Rig
+davEnt = tk.IntVar()
+davButton = tk.Checkbutton(RunFrame, text="Davis Hardware?", variable=davEnt, onvalue=True,offvalue=False)
+davButton.grid(row = 0, column=0, padx=10, pady=5)
 
 #Run the GUI
 root.mainloop()

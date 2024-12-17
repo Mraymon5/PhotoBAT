@@ -4,14 +4,15 @@ import tkinter as tk
 from tkinter import ttk
 
 #%% Import Local Functions
-import MCC_Setup; MCC = MCC_Setup.MCCInterface(); Dav = MCC_Setup.DavRun()
+import MCC_Setup
 
 def rigConfig():
+    MCC = MCC_Setup.MCCInterface(); Dav = MCC_Setup.DavRun()
     #%% Helper Functions
     # Function to read in values from params file and save them as int or None
     def intOrNone(value, factor=1):
         try:
-            return int(value)*factor # If the value in a givin position is a numeral, convert to int
+            return int(value)*factor # If the value in a given position is a numeral, convert to int
         except (ValueError, TypeError): # Otherwise return None
             return None
     
@@ -50,15 +51,15 @@ def rigConfig():
         tableSpeed = float(tSpdEnt.get())
         
         outHeader = "#Davis Rig Hardware Parameters. You probably don't want to edit this manually; try MCC_Test.py instead.\n"
-        outboardNum = f"boardNum={Dav.boardNum}\n"
-        outshutterInitSteps = f"shutterInitSteps={shutterInitSteps}\n"
-        outshutterRunSteps = f"shutterRunSteps={shutterRunSteps}\n"
-        outshutterDir = f"shutterDir={shutterDir}\n"
-        outshutterSpeed = f"shutterSpeed={shutterSpeed}\n"
-        outtableInitSteps = f"tableInitSteps={tableInitSteps}\n"
-        outtableRunSteps = f"tableRunSteps={tableRunSteps}\n"
-        outtableDir = f"tableDir={tableDir}\n"
-        outtableSpeed = f"tableSpeed={tableSpeed}"
+        outboardNum = f"boardNum = {Dav.boardNum}\n"
+        outshutterInitSteps = f"shutterInitSteps = {shutterInitSteps}\n"
+        outshutterRunSteps = f"shutterRunSteps = {shutterRunSteps}\n"
+        outshutterDir = f"shutterDir = {shutterDir}\n"
+        outshutterSpeed = f"shutterSpeed = {shutterSpeed}\n"
+        outtableInitSteps = f"tableInitSteps = {tableInitSteps}\n"
+        outtableRunSteps = f"tableRunSteps = {tableRunSteps}\n"
+        outtableDir = f"tableDir = {tableDir}\n"
+        outtableSpeed = f"tableSpeed = {tableSpeed}"
         
         outLines = (outHeader + outboardNum + outshutterInitSteps + outshutterRunSteps + outshutterDir + outshutterSpeed +
                     outtableInitSteps + outtableRunSteps + outtableDir + outtableSpeed)
@@ -73,8 +74,19 @@ def rigConfig():
         MCC.d_config_port(board_num = Dav.boardNum, port = 0, direction = 'output')
         MCC.d_config_port(board_num = Dav.boardNum, port = 1, direction = 'input')
         MCC.d_out(board_num = Dav.boardNum, port = 0, data = 0b11111111)
+        Dav.moveShutter(Init=True)
+        Dav.moveTable(Init=True)
         # GUI setup
-        calibrateGUI = tk.Tk()
+        if not tk._default_root:
+            root = tk.Tk()  # Create a root window if none exists
+            root.withdraw()  # Hide the root window since we only want Toplevel
+            isChild = False
+        else:
+            isChild = True
+            root = tk._default_root  # Use the existing root
+
+        # Now create your Toplevel window
+        calibrateGUI = tk.Toplevel(root)
         calibrateGUI.title("Motor and Sensor Calibration")
         
         # Shutter control section
@@ -104,7 +116,7 @@ def rigConfig():
         
         # Table control section
         tableFrame = ttk.LabelFrame(calibrateGUI, text="Table Control")
-        tableFrame.grid(row=2, column=0, padx=10, pady=10)
+        tableFrame.grid(row=1, column=0, padx=10, pady=10)
     
         tk.Label(tableFrame, text="Table Initial Steps:").grid(row=0, column=0, padx=10, pady=5)
         tInitEnt = tk.Entry(tableFrame, textvariable=tk.IntVar(value=Dav.tableInitSteps))
@@ -146,7 +158,11 @@ def rigConfig():
         
         # Start updating the sensor display
         update_sensor_display(sensor_labels)
-        
+
+        def on_close():
+            calibrateGUI.destroy()  # Destroy the Toplevel window
+            if not isChild: root.destroy()    # Destroy the hidden root window
+        calibrateGUI.protocol("WM_DELETE_WINDOW", on_close)
         calibrateGUI.mainloop()
     finally:
         MCC.d_close_port()

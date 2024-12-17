@@ -8,7 +8,7 @@ import sys
 isTrue = lambda x: str(str(x).lower() in {'1', 'true', 't'})
 
 #%% Get Parameters
-def makeParams():
+def makeParams(davEnt=False):
     params = easygui.multenterbox('Please enter parameters for this experiment.\nPer-trial parameters may be set manually\nby editing the text of a params file.',
                               'Experiment Parameters',
                               ['0: Wait time before first trial to be delivered (30s)',
@@ -23,10 +23,10 @@ def makeParams():
                                '9: Param file Title',
                                '10: Davis Rig file? (T/F)'
                               ],
-                              [30,60,10,30,90,10,None,False,False,'params','False'])
+                              [30,60,10,30,90,10,None,False,False,'params',davEnt])
     if params is None:
         print('Exiting')
-        sys.exit()
+        return(False)
     
     #Read params
     initial_wait = int(params[0]) #30, initial_wait
@@ -62,7 +62,7 @@ def makeParams():
         taste_positions = [2*int(i+1) for i in range(len(t_list)) if len(t_list[i]) > 0]
     if t_list is None:
         print('Exiting')
-        sys.exit()
+        return(False)
     
     # Setting up spouts for each trial
     tastes = [i for i in t_list if len(i) > 0]
@@ -73,7 +73,7 @@ def makeParams():
                                   values=[None]*len(tastes))
     if concs is None:
         print('Exiting')
-        sys.exit()
+        return(False)
 
     concN = iter(concs)
     c_list = [next(concN) if x != '' else '' for x in t_list]
@@ -85,7 +85,7 @@ def makeParams():
     NTrials = len(tastes)*trials_per_taste
     LickTime = [max_lick_time]*NTrials
     LickCount = [max_lick_count]*NTrials
-    TubeSeq = trial_list
+    TubeSeq = trial_list+1
     IPITimes = list(np.append(initial_wait,([iti]*(NTrials-1)))) #Make a list of IPIs with initial_wait as the first
     MaxWaitTime = [max_trial_time]*NTrials
     SessionTimeLimit = exp_dur
@@ -129,7 +129,7 @@ def makeParams():
         else:
             print("Could not find or create params folder, can't save data")
     
-    outFile = os.path.join(proj_path, f'params/{fileTitle}.txt')
+    outFile = os.path.normpath(os.path.join(proj_path, f'params/{fileTitle}.txt'))
     
     
     with open(outFile, 'w') as outputFile:

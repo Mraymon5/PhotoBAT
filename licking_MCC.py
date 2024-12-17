@@ -75,11 +75,32 @@ ParamsFile = args.ParamsFile
 useLED = args.LED
 useCamera = args.Camera
 #print(args.subjID)
+proj_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
 
 if args.OutputFolder is not None:
-    proj_path = args.OutputFolder
+    out_path = args.OutputFolder
 else:
-    proj_path = os.getcwd() #'/home/rig337-testpi/Desktop/katz_lickometer'
+    out_path = os.path.join(proj_path, 'data')
+try:
+    os.mkdir(out_path)
+    print("No parent data folder, making one")
+except:
+    if os.path.isdir(out_path):
+        print("Parent data folder found")
+    else:
+        print("Could not find or create parent data folder, can't save data")
+
+dat_folder = os.path.join(out_path, '{}'.format(date))
+try:
+    os.mkdir(dat_folder)
+    print("No session data folder, making one")
+except:
+    if os.path.isdir(dat_folder):
+        print("Session data folder found")
+    else:
+        print("Could not find or create session data folder, can't save data")
+print(f'Data folder is, {dat_folder}')
+
     
 if os.path.isdir(os.path.join(proj_path, 'params')):
     paramsFolder = os.path.join(proj_path, 'params/*')
@@ -131,7 +152,7 @@ if ParamsFile is not None:
         useCamera = useCamera
     
     tastes = [stimN for stimN in Solutions if len(stimN) > 0]
-    taste_positions = [int(stimN) for stimN in range(len(Solutions)) if len(Solutions[stimN]) > 0]
+    taste_positions = [int(stimN+1) for stimN in range(len(Solutions)) if len(Solutions[stimN]) > 0]
     concs = [stimN for stimN in Concentrations if len(stimN) > 0]
     
     #Setup Messages
@@ -222,7 +243,7 @@ else:
     
     # Setting up spouts for each trial
     tastes = [i for i in t_list if len(i) > 0]
-    taste_positions = [int(i) for i in range(len(t_list)) if len(t_list[i]) > 0]
+    taste_positions = [int(i+1) for i in range(len(t_list)) if len(t_list[i]) > 0]
     
     concs = easygui.multenterbox('Please enter the concentration of each taste.',
                                   'Concentration List',
@@ -248,27 +269,6 @@ useCamera = isTrue(useCamera)
 # Make empty list to save lick data
 spout_locs = ['Position {}'.format(i) for i in taste_positions]
 licks = {spout:[] for spout in spout_locs}
-
-
-try:
-    os.mkdir(os.path.join(proj_path, 'data'))
-    print("No parent data folder, making one")
-except:
-    if os.path.isdir(os.path.join(proj_path, 'data')):
-        print("Parent data folder found")
-    else:
-        print("Could not find or create parent data folder, can't save data")
-
-dat_folder = os.path.join(proj_path, 'data', '{}'.format(date))
-try:
-    os.mkdir(dat_folder)
-    print("No session data folder, making one")
-except:
-    if os.path.isdir(os.path.join(proj_path, 'data')):
-        print("Session data folder found")
-    else:
-        print("Could not find or create session data folder, can't save data")
-print(f'Data folder is, {dat_folder}')
 
 #%% Setup the output files
 fileTail = ''
@@ -542,7 +542,10 @@ try:
 finally:
     if not cleanRun:
         print("Session interrupted")
-        
+
+    if shutterThread.is_alive():
+        shutterThread.join()
+
     # turn off LEDs and Intan outs
     mcc.setBit(portType=lickLED[0], channel=lickLED[1], value=0)
     mcc.setBit(portType=trialTTL[0], channel=trialTTL[1], value=0)
