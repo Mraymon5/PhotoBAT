@@ -11,7 +11,7 @@ import pandas
 import subprocess
 
 #Import Scripts
-from MakeParams import makeParams
+from MakeParams import makeParams, readParameters
 from MCC_Calibrate import rigConfig #TODO:rename this probably
 
 #%% Import Variables
@@ -90,131 +90,8 @@ def create_paramsFile():
         update_line_in_file(file_path = rigParamsFile, keyword="paramsFile =", new_value=f'paramsFile = {paramsFile} #Path to last params file')
         updateVersion()
 
-def read_parameters():
-    try:
-        with open(paramsFile, 'r') as params:
-            paramsData = params.readlines()
-    except:
-        print("Invalid paramsFile path")
-        return(None,None)
-    paramsData = [line.rstrip('\n') for line in paramsData]
-    paramsData = [line.split('#')[0] for line in paramsData]
-    paramsData = [line.split('=') for line in paramsData]
-    
-    NTrials = int([line[1] for line in paramsData if 'NumberOfPres' in line[0]][0])
-    Version = ([line[1] for line in paramsData if 'Version' in line[0]][0])
-    Solutions = [line[1].split(',') for line in paramsData if 'Solutions' in line[0]][0]
-    if Version != 'IOC':
-        Concentrations = [line[1].split(',') for line in paramsData if 'Concentrations' in line[0]][0]
-        try:
-            LickTime = [line[1].split(',') for line in paramsData if 'LickTime' in line[0]][0]
-        except:
-            LickTime = list([None])
-        LickTime = [intOrNone(trialN, factor=(1/1000)) for trialN in LickTime]
-        try:
-            LickCount = [line[1].split(',') for line in paramsData if 'LickCount' in line[0]][0]
-        except:
-            LickCount = list([None])
-        LickCount = [intOrNone(trialN) for trialN in LickCount]
-        TubeSeq = [line[1].split(',') for line in paramsData if 'TubeSeq' in line[0]][0]
-        TubeSeq = [int(trialN) for trialN in TubeSeq]
-        IPITimes = [line[1].split(',') for line in paramsData if 'IPITimes' in line[0]][0]
-        IPITimes = [int(trialN)/1000 for trialN in IPITimes if len(trialN) != 0]
-        IPImin = [int(line[1]) for line in paramsData if 'IPImin' in line[0]][0]
-        IPImax = [int(line[1]) for line in paramsData if 'IPImax' in line[0]][0]
-        MaxWaitTime = [line[1].split(',') for line in paramsData if 'MaxWaitTime' in line[0]][0]
-        MaxWaitTime = [int(trialN)/1000 for trialN in MaxWaitTime]
-        SessionTimeLimit = int([line[1] for line in paramsData if 'SessionTimeLimit' in line[0]][0])/1000
-        try:
-            useLED = [line[1] for line in paramsData if 'UseLED' in line[0]][0]
-        except:
-            useLED = False
-        try:
-            useCamera = [line[1] for line in paramsData if 'UseCamera' in line[0]][0]
-        except:
-            useCamera = False
-        
-        tastes = [stimN for stimN in Solutions if len(stimN) > 0]
-        taste_positions = [int(stimN+1) for stimN in range(len(Solutions)) if len(Solutions[stimN]) > 0]
-        concs = [stimN for stimN in Concentrations if len(stimN) > 0]
-        tasteList =  [Solutions[tubeN-1] for tubeN in TubeSeq]
-        concList =  [Concentrations[tubeN-1] for tubeN in TubeSeq]
-        stimList = [f'{concList[trialN]} {tasteList[trialN]}' for trialN in range(NTrials)]
-        
-        #Set Lick Time List
-        if len(LickTime) < NTrials:
-            LickTime = (LickTime * -(-NTrials//len(LickTime)))[:NTrials]
-        if len(LickTime) > NTrials:
-            LickTime = LickTime[:NTrials]
-        #Set Lick Count List
-        if len(LickCount) < NTrials:
-            LickCount = (LickCount * -(-NTrials//len(LickCount)))[:NTrials]
-        if len(LickCount) > NTrials:
-            LickCount = LickCount[:NTrials]
-        #Set Trial List
-        if len(TubeSeq) < NTrials:
-            TubeSeq = (TubeSeq * -(-NTrials//len(TubeSeq)))[:NTrials]
-        if len(TubeSeq) > NTrials:
-            TubeSeq = TubeSeq[:NTrials]
-        #Set IPI List
-        if len(IPITimes) == 0 and (len(IPImin) != 0 and len(IPImax) != 0 ):
-            IPITimes = [f'random({IPImin}-{IPImax})' for trialN in range(NTrials)]
-        if len(IPITimes) < NTrials:
-            IPITimes = (IPITimes * -(-NTrials//len(IPITimes)))[:NTrials]
-        if len(IPITimes) > NTrials:
-            IPITimes = IPITimes[:NTrials]
-        #Set Max Wait List
-        if len(MaxWaitTime) < NTrials:
-            MaxWaitTime = (MaxWaitTime * -(-NTrials//len(MaxWaitTime)))[:NTrials]
-        if len(MaxWaitTime) > NTrials:
-            MaxWaitTime = MaxWaitTime[:NTrials]
-        
-        
-        if any(LickTime[trialN] is None and LickCount[trialN] is None for trialN in range(NTrials)):
-            raise Exception("Both LickTime and LickCount are None for some trials")
-
-        trialData = pandas.DataFrame({'Trial':range(1,NTrials+1), 'Tube':TubeSeq, 'Conc':concList, 'Stim':tasteList, 'LickTime':LickTime, 'LickCount':LickCount,
-                                    'IPI':IPITimes,'MaxWait':MaxWaitTime})    
-        return(Version,trialData)
-    else:
-        OpenTimes = [line[1].split(',') for line in paramsData if 'OpenTimes' in line[0]][0]
-        OpenTimes = [float(trialN) for trialN in OpenTimes]
-        ValvePins = [line[1].split(',') for line in paramsData if 'ValvePins' in line[0]][0]
-        ValvePins = [int(trialN) for trialN in ValvePins]
-        IntanPins = [line[1].split(',') for line in paramsData if 'IntanPins' in line[0]][0]
-        IntanPins = [int(trialN) for trialN in IntanPins]
-        TubeSeq = [line[1].split(',') for line in paramsData if 'TubeSeq' in line[0]][0]
-        TubeSeq = [int(trialN) for trialN in TubeSeq]
-        IPITimes = [line[1].split(',') for line in paramsData if 'IPITimes' in line[0]][0]
-        IPITimes = [int(trialN)/1000 for trialN in IPITimes if len(trialN) != 0]
-        IPImin = [int(line[1]) for line in paramsData if 'IPImin' in line[0]][0]
-        IPImax = [int(line[1]) for line in paramsData if 'IPImax' in line[0]][0]
-        try:
-            useLED = [line[1] for line in paramsData if 'UseLED' in line[0]][0]
-        except:
-            useLED = False
-        try:
-            useCamera = [line[1] for line in paramsData if 'UseCamera' in line[0]][0]
-        except:
-            useCamera = False
-
-        tasteList =  [Solutions[tubeN] for tubeN in TubeSeq]
-        openList =  [OpenTimes[tubeN] for tubeN in TubeSeq]
-        valveList =  [ValvePins[tubeN] for tubeN in TubeSeq]
-        intanList =  [IntanPins[tubeN] for tubeN in TubeSeq]
-        minList =  [IPImin for tubeN in TubeSeq]
-        maxList =  [IPImax for tubeN in TubeSeq]
-
-        #This would be the display for a program where the session is param'd in advance
-        #trialData = pandas.DataFrame({'Trial':range(1,NTrials+1), 'Tube':TubeSeq,'Stim':tasteList, 'OpenTime':openList, 'ValvePin':valveList,
-        #                            'IntanPin':intanList,'minIPI':minList,'maxIPI':maxList})    
-        #This is the display for just giving basic parameters to the IOC program
-        trialData = pandas.DataFrame({'Stim':Solutions, 'OpenTime':OpenTimes, 'ValvePin':ValvePins,
-                                    'IntanPin':IntanPins,'minIPI':[IPImin]*len(Solutions),'maxIPI':[IPImax]*len(Solutions)})    
-        return(Version,trialData)
-
 def display_parameters():
-    version,trialData = read_parameters()
+    version,trialData = readParameters(paramsFile=paramsFile)
     paramDisp = tk.Toplevel(root)
     paramDisp.title("Session Parameters")
     frame = tk.Frame(paramDisp)
@@ -229,7 +106,7 @@ def display_parameters():
     paramDisp.mainloop()
 
 def updateVersion():
-    version, trialData = read_parameters()
+    version, trialData = readParameters(paramsFile=paramsFile)
     if version == "Davis":
         davButton.select()
     elif version == "BAT":

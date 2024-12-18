@@ -13,6 +13,7 @@ import argparse
 import random
 from datetime import datetime
 import threading
+import tkinter
 
 #Currently unused modules
 if False:

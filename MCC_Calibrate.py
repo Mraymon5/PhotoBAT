@@ -84,6 +84,10 @@ def rigConfig():
         else:
             isChild = True
             root = tk._default_root  # Use the existing root
+        def on_close():
+            calibrateGUI.destroy()  # Destroy the Toplevel window
+            if not isChild: root.destroy()    # Destroy the hidden root window
+        calibrateGUI.protocol("WM_DELETE_WINDOW", on_close)
 
         # Now create your Toplevel window
         calibrateGUI = tk.Toplevel(root)
@@ -159,10 +163,6 @@ def rigConfig():
         # Start updating the sensor display
         update_sensor_display(sensor_labels)
 
-        def on_close():
-            calibrateGUI.destroy()  # Destroy the Toplevel window
-            if not isChild: root.destroy()    # Destroy the hidden root window
-        calibrateGUI.protocol("WM_DELETE_WINDOW", on_close)
         calibrateGUI.mainloop()
     finally:
         MCC.d_close_port()
