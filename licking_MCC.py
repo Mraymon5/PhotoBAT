@@ -407,7 +407,8 @@ cleanRun = False
 try:
     for trialN, spoutN in enumerate(TubeSeq): #trialN was index, spoutN was trial #spoutN = 2; trialN = 1
         #Set index for identifying stimuli
-        taste_idx = int((spoutN - 2) / 2)
+        #taste_idx = int((spoutN - 2) / 2) #TODO this is a problem. spoutN is TubeSeq{i}, Tubeseq{i} is just the list of positions
+        #taste_idx is used to index stimuli and concentration data, tastes and concs
         
         #Check max session time
         if time.time() - exp_init_time >= SessionTimeLimit: #If session duration expires, exit the for loop
@@ -522,7 +523,7 @@ try:
         else:
             latency = trialLicks[0]
         timeTemp = [LickTime[trialN] if LickTime[trialN] is not None else 'None'][0]
-        trialLine = f"{trialN+1:>4},{spoutN:>4},{concs[taste_idx]:>{padConc}},{tastes[taste_idx]:>{padStim}},{IPITimes[trialN]:>7},{timeTemp:>7},{NLicks:>7},{latency:>{padLat}},{0:>7}\n"  # Left-aligned, padded with spaces
+        trialLine = f"{trialN+1:>4},{spoutN:>4},{Concentrations[spoutN-1]:>{padConc}},{Solutions[spoutN-1]:>{padStim}},{IPITimes[trialN]:>7},{timeTemp:>7},{NLicks:>7},{latency:>{padLat}},{0:>7}\n"  # Left-aligned, padded with spaces
         with open(outFile, 'r') as outputFile:
             outputData = outputFile.readlines()
             outputData.insert((skipLines+trialN),trialLine)
