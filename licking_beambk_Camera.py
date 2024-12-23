@@ -30,6 +30,18 @@ from rgbled_class import RGBLed
 from turn_motor import *
 import CameraControl
 
+#%% Helper Functions
+# Helper function to read in values from params file and save them as int or None
+def intOrNone(value, factor=1):
+    try:
+        return int(value)*factor # If the value in a givin position is a numeral, convert to int
+    except (ValueError, TypeError): # Otherwise return None
+        return None
+
+# Helper function to allow flexible inputs for True in user-supplied strings
+isTrue = lambda x: str(str(x).lower() in {'1', 'true', 't'})
+
+
 #%% Setup Session Parameters
 
 #TODO: Add in a option to set max licks per trial instead of max time, DONE, untested
@@ -51,11 +63,33 @@ ParamsFile = args.ParamsFile
 useLED = args.LED
 useCamera = args.Camera
 #print(args.subjID)
+#print(args.subjID)
+proj_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
 
 if args.OutputFolder is not None:
-    proj_path = args.OutputFolder
+    out_path = args.OutputFolder
 else:
-    proj_path = os.getcwd() #'/home/rig337-testpi/Desktop/katz_lickometer'
+    out_path = os.path.join(proj_path, 'data')
+try:
+    os.mkdir(out_path)
+    print("No parent data folder, making one")
+except:
+    if os.path.isdir(out_path):
+        print("Parent data folder found")
+    else:
+        print("Could not find or create parent data folder, can't save data")
+
+dat_folder = os.path.join(out_path, '{}'.format(date))
+try:
+    os.mkdir(dat_folder)
+    print("No session data folder, making one")
+except:
+    if os.path.isdir(dat_folder):
+        print("Session data folder found")
+    else:
+        print("Could not find or create session data folder, can't save data")
+print(f'Data folder is, {dat_folder}')
+
     
 if os.path.isdir(os.path.join(proj_path, 'params')):
     paramsFolder = os.path.join(proj_path, 'params/*')
@@ -66,17 +100,6 @@ else:
 if args.ParamsFile is None:
     ParamsFile = easygui.fileopenbox(msg="Select a params file, or cancel for manual entry", default=paramsFolder)
 
-#print(proj_path)
-
-# Helper function to read in values from params file and save them as int or None
-def intOrNone(value, factor=1):
-    try:
-        return int(value)*factor # If the value in a givin position is a numeral, convert to int
-    except (ValueError, TypeError): # Otherwise return None
-        return None
-
-# Helper function to allow flexible inputs for True in user-supplied strings
-isTrue = lambda x: str(str(x).lower() in {'1', 'true', 't'})
 
 # Setup trial parameters
 #ParamsFile = '/home/ramartin/Documents/Forms/TrialParamsTemplate.txt'
@@ -203,19 +226,22 @@ else:
     
     # Get tastes and their spout locations
     bot_pos = ['Water', '', '', '']
-    t_list = easygui.multenterbox('Please enter the taste to be used in each spout.',
+    Solutions = easygui.multenterbox('Please enter the taste to be used in each spout.',
                                   'Taste List',
                                   ['Spout {}'.format(i) for i in ['2, Yellow','4, Blue','6, Green','8, Red']],
                                   values=bot_pos)
     
     # Setting up spouts for each trial
-    tastes = [i for i in t_list if len(i) > 0]
-    taste_positions = [2*int(i+1) for i in range(len(t_list)) if len(t_list[i]) > 0]
+    tastes = [i for i in Solutions if len(i) > 0]
+    taste_positions = [2*int(i+1) for i in range(len(Solutions)) if len(Solutions[i]) > 0]
     
     concs = easygui.multenterbox('Please enter the concentration of each taste.',
                                   'Concentration List',
                                   tastes,
                                   values=[None]*len(tastes))
+    concN = iter(concs)
+    Concentrations = [next(concN) if x != '' else '' for x in Solutions]
+
     
     trial_list = [np.random.choice(taste_positions, size = len(tastes), replace=False) for i in range(trials_per_taste)]
     trial_list = np.concatenate(trial_list)
@@ -236,27 +262,6 @@ useCamera = isTrue(useCamera)
 # Make empty list to save lick data
 spout_locs = ['Position {}'.format(i) for i in taste_positions]
 licks = {spout:[] for spout in spout_locs}
-
-
-try:
-    os.mkdir(os.path.join(proj_path, 'data'))
-    print("No parent data folder, making one")
-except:
-    if os.path.isdir(os.path.join(proj_path, 'data')):
-        print("Parent data folder found")
-    else:
-        print("Could not find or create parent data folder, can't save data")
-
-dat_folder = os.path.join(proj_path, 'data', '{}'.format(date))
-try:
-    os.mkdir(dat_folder)
-    print("No session data folder, making one")
-except:
-    if os.path.isdir(os.path.join(proj_path, 'data')):
-        print("Session data folder found")
-    else:
-        print("Could not find or create session data folder, can't save data")
-print(f'Data folder is, {dat_folder}')
 
 #%% Setup the output files
 fileTail = ''
@@ -307,7 +312,7 @@ if 0: # This is strictly for testing outputs and should be disabled or removed f
         latency = random.randrange(0,round(max(MaxWaitTime)*1000))
         licks = [random.randrange(100,150) for lickN in range(NLicks-1)]
         timeTemp = [LickTime[trialN] if LickTime[trialN] is not None else 'None'][0]
-        trialLine = f"{trialN+1:>4},{spoutN:>4},{concs[taste_idx]:>{padConc}},{tastes[taste_idx]:>{padStim}},{IPITimes[trialN]:>7},{timeTemp:>7},{NLicks:>7},{latency:>{padLat}},{0:>7}\n"  # Left-aligned, padded with spaces
+        trialLine = f"{trialN+1:>4},{spoutN:>4},{Concentrations[taste_idx]:>{padConc}},{Solutions[taste_idx]:>{padStim}},{IPITimes[trialN]:>7},{timeTemp:>7},{NLicks:>7},{latency:>{padLat}},{0:>7}\n"  # Left-aligned, padded with spaces
         with open(outFile, 'r') as outputFile:
             outputData = outputFile.readlines()
             outputData.insert((skipLines+trialN),trialLine)
@@ -630,7 +635,7 @@ finally:
         param_dict['MaxWaitTime'] = [f'{i}' for i in MaxWaitTime]
         param_dict['LickTime'] = [f'{i}' for i in LickTime]
         param_dict['IPITimes'] = [f'{i}' for i in IPITimes]
-        param_dict['taste_list'] = {k:t for k, t in zip([f'spout-{(i+1)*2}' for i in range(4)], t_list)}
+        param_dict['taste_list'] = {k:t for k, t in zip([f'spout-{(i+1)*2}' for i in range(4)], Solutions)}
         param_dict['TubeSeq'] = [f'{i}' for i in TubeSeq]
         param_dict['licks'] = licks
         
