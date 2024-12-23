@@ -326,13 +326,15 @@ print('Taste Sequence: {}'.format(TubeSeq))
 # setup motor [40 pin header for newer Raspberry Pi's]
 step = 24       # Pin assigned to motor controller steps
 direction = 23  # Pin assigned to motor controller direction
-enable = 25     # Not required - leave unconnected
+enable = 20     # Not required - leave unconnected
 ms1 = 18
 ms2 = 15
 ms3 = 14
 he_pin = 16     # Hall effect pin
+tot_pos = 8     # Total Positions on table, including walls
 cur_pos = 1     # Initial position of table should be 1
 dest_pos = TubeSeq[0]
+Mode = Motor.HALF
 
 # set up RGB LEDs
 red_pin, green_pin, blue_pin = board.D13, board.D19, board.D26
@@ -435,21 +437,21 @@ try:
         this_trial_num = len(licks[this_spout]) - 1 
         
         # using rotate_dir function to get the move of the motor
-        turn_dir, n_shift = rotate_dir(cur_pos, dest_pos, tot_pos = 8)
+        turn_dir, n_shift = rotate_dir(cur_pos, dest_pos, tot_pos = tot_pos)
     
         # create Motor instance
         motora = Motor(step, direction, enable, ms1, ms2, ms3)
         motora.init()
-        revolution = motora.setStepSize(Motor.EIGHTH) #SIXTEENTH)
+        revolution = motora.setStepSize(Mode)
         
         # start nose poke detection
         NP_process = Popen(['python', 'nose_poking.py', subjID, f'{trialN}'], shell=False)
     
         # rotate motor to move spout outside licking hole
         if turn_dir == -1: # turn clockwise
-            motora.turn(n_shift * (revolution/8), Motor.CLOCKWISE)
+            motora.turn(n_shift * (revolution/tot_pos), Motor.CLOCKWISE)
         else:
-            motora.turn(n_shift * (revolution/8), Motor.ANTICLOCKWISE)
+            motora.turn(n_shift * (revolution/tot_pos), Motor.ANTICLOCKWISE)
             
         #Update motor position
         cur_pos = dest_pos
@@ -506,18 +508,18 @@ try:
         # find rest_direction
         cur_pos = TubeSeq[trialN]
         if trialN < len(TubeSeq) - 1:
-            rest_dir, _ = rotate_dir(cur_pos, TubeSeq[trialN+1], tot_pos = 8)
+            rest_dir, _ = rotate_dir(cur_pos, TubeSeq[trialN+1], tot_pos = tot_pos)
         else:
             rest_dir = -1
         dest_pos = cur_pos + rest_dir
         dest_pos = dest_pos if dest_pos<=8 else dest_pos-8
         
         # rotate to rest position
-        turn_dir, n_shift = rotate_dir(cur_pos, dest_pos, tot_pos = 8)
+        turn_dir, n_shift = rotate_dir(cur_pos, dest_pos, tot_pos = tot_pos)
         if turn_dir == -1: # turn clockwise
-            motora.turn(n_shift * (revolution/8), Motor.CLOCKWISE)
+            motora.turn(n_shift * (revolution/tot_pos), Motor.CLOCKWISE)
         else:
-            motora.turn(n_shift * (revolution/8), Motor.ANTICLOCKWISE)
+            motora.turn(n_shift * (revolution/tot_pos), Motor.ANTICLOCKWISE)
     
         # setup cur_post and dest_pos for next trial, or just update cur_pos if the session is over
         if trialN < len(TubeSeq) - 1:
@@ -596,13 +598,13 @@ finally:
     # create Motor instance
     motora = Motor(step, direction, enable, ms1, ms2, ms3)
     motora.init()
-    revolution = motora.setStepSize(Motor.EIGHTH) #SIXTEENTH)
+    revolution = motora.setStepSize(Mode) #SIXTEENTH)
     # Turn the motor
-    turn_dir, n_shift = rotate_dir(cur_pos, 1, tot_pos = 8)
+    turn_dir, n_shift = rotate_dir(cur_pos, 1, tot_pos = tot_pos)
     if turn_dir == -1: # turn clockwise
-        motora.turn(n_shift * (revolution/8), Motor.CLOCKWISE)
+        motora.turn(n_shift * (revolution/tot_pos), Motor.CLOCKWISE)
     else:
-        motora.turn(n_shift * (revolution/8), Motor.ANTICLOCKWISE)
+        motora.turn(n_shift * (revolution/tot_pos), Motor.ANTICLOCKWISE)
     # Shut down motor
     motora.reset()
 
