@@ -12,7 +12,6 @@ import subprocess
 
 #Import Scripts
 from MakeParams import makeParams, readParameters
-from MCC_Calibrate import rigConfig #TODO:rename this probably
 
 #%% Import Variables
 base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
@@ -83,7 +82,7 @@ def select_paramsFile():
 
 def create_paramsFile():
     global paramsFile
-    tempFile = makeParams(bool(davEnt.get()))
+    tempFile = makeParams(bool(sysIs.get()))
     if tempFile != False:
         paramsFile = tempFile
         paramLabel.config(text=paramsFile)
@@ -108,11 +107,11 @@ def display_parameters():
 def updateVersion():
     version, trialData = readParameters(paramsFile=paramsFile)
     if version == "Davis":
-        davButton.select()
+        sysIs.set('Davis Rig')
     elif version == "BAT":
-        davButton.deselect()
+        sysIs.set('PhotoBAT')
     else:
-        easygui.msgbox(msg = "Is the Davis Hardware toggle correct?", title="Version Check")
+        easygui.msgbox(msg = "Is the correct hardware selected?", title="Version Check")
 
 def updateFolder():
     global outputFolder
@@ -128,28 +127,34 @@ def selectOutput():
         update_line_in_file(file_path = rigParamsFile, keyword="outputFolder =", new_value=f'outputFolder = {outputFolder} #Path to last output directory')
 
 def runConfig():
-    if bool(davEnt.get()):
+    if sysIs.get() == 'Davis Rig':
+        from MCC_Calibrate import rigConfig #TODO:rename this probably
         rigConfig()
-    else:
+    elif sysIs.get() == 'PhotoBAT':
         import rig_funcs
         rig_funcs.fine_align()
+    elif sysIs.get() == 'IOC':
+        easygui.msgbox(msg = 'IOC not implemented', title="Version Check")
+    else:
+        easygui.msgbox(msg = 'Select hardware', title="Version Check")
 
 def runSession():
-    if bool(davEnt.get()):
+    if sysIs.get() == 'Davis Rig':
         targetScript = os.path.join(base_path, 'licking_MCC.py')
-    elif bool(IOCEnt.get()):
-        import rig_funcs
+    elif sysIs.get() == 'PhotoBAT':
+        targetScript = os.path.join(base_path, 'licking_beambk_Camera.py')
+        args = [str(ID_Ent.get()),
+                "-p", paramsFile.strip(),
+                "-o", outputFolder.strip()]
+        root.destroy()
+        result = subprocess.run(["python", targetScript] + args)
+    elif sysIs.get() == 'IOC':
+        import pi_rig
         root.destroy()
         passive() #TODO implement this code
+        easygui.msgbox(msg = 'IOC not implemented', title="Version Check")
     else:
-        targetScript = os.path.join(base_path, 'licking_beambk_Camera.py')
-    args = [str(ID_Ent.get()),
-            "-p", paramsFile.strip(),
-            "-o", outputFolder.strip()]
-    root.destroy()
-    result = subprocess.run(["python", targetScript] + args)
-    #print("Session Run:")
-    #print(result)
+        easygui.msgbox(msg = 'Select hardware', title="Version Check")
 
 def featureWarn():
     easygui.msgbox(msg="This feature is not implemented", title="Warning")
@@ -196,13 +201,18 @@ tk.Button(RunFrame, text="Config Rig", command=runConfig).grid(row=1, column=0, 
 #Button to start session?
 tk.Button(RunFrame, text="Run Session", command=runSession).grid(row=1, column=1, padx=10, pady=10)
 #Button for whether this is a Davis Rig
-davEnt = tk.IntVar()
-davButton = tk.Checkbutton(RunFrame, text="Davis Hardware?", variable=davEnt, onvalue=True,offvalue=False)
-davButton.grid(row = 0, column=0, padx=10, pady=5)
+sysOptions = ['PhotoBAT', 'Davis Rig', 'IOC']
+sysIs = tk.StringVar()
+sysIs.set('Select Hardware')
+sysList = tk.OptionMenu(RunFrame,sysIs, *sysOptions)
+sysList.grid(row = 0, column=0, padx=10, pady=5)
+#davEnt = tk.IntVar()
+#davButton = tk.Checkbutton(RunFrame, text="Davis Hardware?", variable=davEnt, onvalue=True,offvalue=False)
+#davButton.grid(row = 0, column=0, padx=10, pady=5)
 updateVersion()
-IOCEnt = tk.IntVar()
-IOCButton = tk.Checkbutton(RunFrame, text="IOC session?", variable=IOCEnt, onvalue=True,offvalue=False,command=featureWarn)
-IOCButton.grid(row = 0, column=1, padx=10, pady=5)
+#IOCEnt = tk.IntVar()
+#IOCButton = tk.Checkbutton(RunFrame, text="IOC session?", variable=IOCEnt, onvalue=True,offvalue=False,command=featureWarn)
+#IOCButton.grid(row = 0, column=1, padx=10, pady=5)
 
 #Run the GUI
 root.mainloop()
