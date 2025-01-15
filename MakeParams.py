@@ -14,9 +14,8 @@ def intOrNone(value, factor=1):
     except (ValueError, TypeError): # Otherwise return None
         return None
 
-#%% Get Parameters
-def makeParams(davEnt=False):
-    defaultVersion = "Davis Rig" if davEnt else "PhotoBAT"
+#%% Make Parameters
+def makeParams(defaultVersion="PhotoBAT"):
     version = easygui.buttonbox(msg="What system are these parameters for?", title="Version Selection", choices=('PhotoBAT', "Davis Rig","IOC"),default_choice=defaultVersion)
     if version is None:
         print('Exiting')
