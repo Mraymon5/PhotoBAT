@@ -87,11 +87,11 @@ def rigConfig():
         def on_close():
             calibrateGUI.destroy()  # Destroy the Toplevel window
             if not isChild: root.destroy()    # Destroy the hidden root window
-        calibrateGUI.protocol("WM_DELETE_WINDOW", on_close)
 
         # Now create your Toplevel window
         calibrateGUI = tk.Toplevel(root)
         calibrateGUI.title("Motor and Sensor Calibration")
+        calibrateGUI.protocol("WM_DELETE_WINDOW", on_close)
         
         # Shutter control section
         shutterFrame = ttk.LabelFrame(calibrateGUI, text="Shutter Control")
