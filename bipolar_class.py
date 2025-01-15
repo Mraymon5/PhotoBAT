@@ -4,7 +4,8 @@
 # Raspberry Pi bipolar Stepper Motor Driver Class
 # Hardware Nema17 12 Volt Stepper High Torque Motor
 # Gear Reduction Ratio: 1/64 
-# Uses the A4988 H-bridge circuit driver board: https://www.mouser.com/pdfDocs/A4988-Datasheet.pdf
+# Uses the A4988 H-bridge circuit driver board:
+# https://www.mouser.com/pdfDocs/A4988-Datasheet.pdf
 #
 # Author : Bob Rathbone
 # Site   : http://www.bobrathbone.com
@@ -100,6 +101,7 @@ class Motor:
             GPIO.output(self.step,GPIO.LOW)
             time.sleep(self.interval)
             count -= 1
+        time.sleep(0.05) #MAR if enable/disable is used, this is neccessary to prevent sliding/overshooting
         GPIO.output(self.enable,DISABLE)
         return
 
@@ -200,14 +202,19 @@ class Motor:
 
         if size == self.HALF:
             steps = self.setStepResolution(HalfStep)    
+            self.interval = 0.0075 #0.0007
         elif size == self.QUARTER:
             steps = self.setStepResolution(QuarterStep) 
+            self.interval = 0.001 #0.0007
         elif size == self.EIGHTH:
-            steps = self.setStepResolution(EighthStep)  
+            steps = self.setStepResolution(EighthStep)
+            self.interval = 0.001 #0.0007
         elif size == self.SIXTEENTH:
             steps = self.setStepResolution(SixteenthStep)   
+            self.interval = 0.001 #0.0007
         else:
             steps = self.setStepResolution(FullStep)    
+            self.interval = 0.01 #0.0007
 
         self.oneRevolution = steps
         return self.oneRevolution
