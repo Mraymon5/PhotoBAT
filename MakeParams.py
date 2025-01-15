@@ -109,7 +109,7 @@ def makeParams(defaultVersion="PhotoBAT"):
         MaxWaitTime = [max_trial_time]*NTrials
         SessionTimeLimit = exp_dur
         nTubes = 16 if isDav else 4
-        version = 'Davis' if isDav else 'BAT'
+        version = 'Davis Rig' if isDav else 'PhotoBAT'
         #%% Create Output
         outTitle = "[Trial Parameters]\n"
         outNumTubes = f"NumberOfTubes={nTubes}\n"
@@ -155,7 +155,7 @@ def makeParams(defaultVersion="PhotoBAT"):
         with open(outFile, 'w') as outputFile:
             outputFile.write(outLines)
             print(f'Params saved as {outFile}')
-        
+
         return outFile
     else:
         params = easygui.multenterbox('Please enter parameters for this experiment.\nPer-trial parameters may be set manually\nby editing the text of a params file.',
@@ -289,6 +289,7 @@ def readParameters(paramsFile):
     
     NTrials = int([line[1] for line in paramsData if 'NumberOfPres' in line[0]][0])
     Version = ([line[1] for line in paramsData if 'Version' in line[0]][0])
+    isDav = True if Version == 'Davis Rig' else False
     Solutions = [line[1].split(',') for line in paramsData if 'Solutions' in line[0]][0]
     if Version != 'IOC':
         Concentrations = [line[1].split(',') for line in paramsData if 'Concentrations' in line[0]][0]
@@ -321,10 +322,15 @@ def readParameters(paramsFile):
             useCamera = False
         
         tastes = [stimN for stimN in Solutions if len(stimN) > 0]
-        taste_positions = [int(stimN+1) for stimN in range(len(Solutions)) if len(Solutions[stimN]) > 0]
         concs = [stimN for stimN in Concentrations if len(stimN) > 0]
-        tasteList =  [Solutions[tubeN-1] for tubeN in TubeSeq]
-        concList =  [Concentrations[tubeN-1] for tubeN in TubeSeq]
+        if isDav:
+            taste_positions = [int(stimN+1) for stimN in range(len(Solutions)) if len(Solutions[stimN]) > 0]
+            tasteList =  [Solutions[tubeN-1] for tubeN in TubeSeq]
+            concList =  [Concentrations[tubeN-1] for tubeN in TubeSeq]
+        else:
+            taste_positions = [2*int(stimN+1) for stimN in range(len(Solutions)) if len(Solutions[stimN]) > 0]
+            tasteList =  [Solutions[int(tubeN/2)-1] for tubeN in TubeSeq]
+            concList =  [Concentrations[int(tubeN/2)-1] for tubeN in TubeSeq]
         stimList = [f'{concList[trialN]} {tasteList[trialN]}' for trialN in range(NTrials)]
         
         #Set Lick Time List
