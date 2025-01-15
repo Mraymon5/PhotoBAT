@@ -106,10 +106,12 @@ def display_parameters():
 
 def updateVersion():
     version, trialData = readParameters(paramsFile=paramsFile)
-    if version == "Davis":
+    if version == 'Davis Rig':
         sysIs.set('Davis Rig')
-    elif version == "BAT":
+    elif version == 'PhotoBAT':
         sysIs.set('PhotoBAT')
+    elif version == "IOC":
+        sysIs.set('IOC')
     else:
         easygui.msgbox(msg = "Is the correct hardware selected?", title="Version Check")
 
@@ -149,10 +151,10 @@ def runSession():
         root.destroy()
         result = subprocess.run(["python", targetScript] + args)
     elif sysIs.get() == 'IOC':
+        easygui.msgbox(msg = 'IOC not implemented', title="Version Check")
         import pi_rig
         root.destroy()
         passive() #TODO implement this code
-        easygui.msgbox(msg = 'IOC not implemented', title="Version Check")
     else:
         easygui.msgbox(msg = 'Select hardware', title="Version Check")
 
@@ -201,11 +203,13 @@ tk.Button(RunFrame, text="Config Rig", command=runConfig).grid(row=1, column=0, 
 #Button to start session?
 tk.Button(RunFrame, text="Run Session", command=runSession).grid(row=1, column=1, padx=10, pady=10)
 #Button for whether this is a Davis Rig
+sysLabel = tk.Label(RunFrame, text="Hardware Version:")
+sysLabel.grid(row = 0, column=0, padx=10, pady=5)
 sysOptions = ['PhotoBAT', 'Davis Rig', 'IOC']
 sysIs = tk.StringVar()
 sysIs.set('Select Hardware')
 sysList = tk.OptionMenu(RunFrame,sysIs, *sysOptions)
-sysList.grid(row = 0, column=0, padx=10, pady=5)
+sysList.grid(row = 0, column=1, padx=10, pady=5)
 #davEnt = tk.IntVar()
 #davButton = tk.Checkbutton(RunFrame, text="Davis Hardware?", variable=davEnt, onvalue=True,offvalue=False)
 #davButton.grid(row = 0, column=0, padx=10, pady=5)
