@@ -145,18 +145,21 @@ def runSession():
         targetScript = os.path.join(base_path, 'licking_MCC.py')
     elif sysIs.get() == 'PhotoBAT':
         targetScript = os.path.join(base_path, 'licking_beambk_Camera.py')
-        args = [str(ID_Ent.get()),
-                "-p", paramsFile.strip(),
-                "-o", outputFolder.strip()]
-        root.destroy()
-        result = subprocess.run(["python", targetScript] + args)
     elif sysIs.get() == 'IOC':
+        targetScript = None
         easygui.msgbox(msg = 'IOC not implemented', title="Version Check")
         import pi_rig
         root.destroy()
         passive() #TODO implement this code
     else:
+        targetScript = None
         easygui.msgbox(msg = 'Select hardware', title="Version Check")
+    if targetScript is not None:
+        args = [str(ID_Ent.get()),
+                "-p", paramsFile.strip(),
+                "-o", outputFolder.strip()]
+        root.destroy()
+        result = subprocess.run(["python", targetScript] + args)
 
 def featureWarn():
     easygui.msgbox(msg="This feature is not implemented", title="Warning")
