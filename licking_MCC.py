@@ -73,6 +73,7 @@ def runSession():
     abortButton = tk.Button(controlFrame,text="Abort",command=on_close)
     abortButton.grid(row=0, column=0, padx=10, pady=10)
     global curPos
+    shutterThread = None #Add this so that the thread can be resolved before shutterThread is instanced
     #Final Check
     #input('===  Please press ENTER to start the experiment ===')
     print('\n=== Press Ctrl-C to abort session ===\n')
@@ -226,7 +227,7 @@ def runSession():
         if not cleanRun:
             print("Session interrupted")
 
-        if shutterThread.is_alive():
+        if shutterThread and shutterThread.is_alive():
             shutterThread.join()
 
         # turn off LEDs and Intan outs
