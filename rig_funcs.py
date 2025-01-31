@@ -8,7 +8,7 @@ try:
     import RPi.GPIO as GPIO
     from bipolar_class import Motor
 except:
-    print('Could not import Pi-Specific Modules')
+    print('Rig: Could not import Pi-Specific Modules')
 
 #%% Read Params function
 def read_params():
@@ -98,11 +98,11 @@ def detect_magnet(he_inport = hallPin, wait = 0.5):
         pass
     
 def align_zero(step=stepPin, direction=directionPin,enable=enablePin,ms1=ms1Pin,ms2=ms2Pin,ms3=ms3Pin,
-               rotate='clockwise', he_inport = hallPin, adjust_steps=initSteps): 
+               rotate='clockwise', he_inport = hallPin, adjust_steps=initSteps, stepMode = stepMode): 
     motora = Motor(step,direction,enable,ms1,ms2,ms3)
     motora.init()
     revolution = motora.setStepSize(stepMode)
-    print(revolution)
+    print(f'Total steps in this mode: {revolution}')
     inport = he_inport
     GPIO.setmode(GPIO.BCM)
     GPIO.setup(inport, GPIO.IN)
@@ -124,9 +124,9 @@ def align_zero(step=stepPin, direction=directionPin,enable=enablePin,ms1=ms1Pin,
     #If the mag sensor is not aligned, move to it
     while GPIO.input(inport) and n < revolution:
         if rotate == 'clockwise':
-            motora.turn(1, Motor.CLOCKWISE)
-        elif rotate == 'anticlockwise':
             motora.turn(1, Motor.ANTICLOCKWISE)
+        elif rotate == 'anticlockwise':
+            motora.turn(1, Motor.CLOCKWISE)
         n += 1
         time.sleep(0.0007)
     if  n >= revolution:
