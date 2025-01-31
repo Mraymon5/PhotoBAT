@@ -9,8 +9,9 @@
 #
 # Author : Bob Rathbone
 # Site   : http://www.bobrathbone.com
-#
+# Modified by Martin Raymond
 
+#%% Module Imports
 import sys
 import os
 import time
@@ -18,8 +19,14 @@ import numpy as np
 
 import RPi.GPIO as GPIO
 
+#%% Local Modules
+from rig_funcs import read_params
+
+#%%
 # The stepper motor can be driven in five different modes 
 # See http://en.wikipedia.org/wiki/Stepper_motor
+
+rigParams = read_params()
 
 # Step resolution (The last column is the multiplier for one revolution)
 FullStep = [0,0,0,1]
@@ -31,7 +38,7 @@ SixteenthStep = [1,1,1,16]
 # Other definitions
 ENABLE = GPIO.LOW
 DISABLE = GPIO.HIGH
-STEPS = 200 # 200 step motor (Full)
+STEPS = rigParams['tableTotalSteps'] # 200 step motor (Full)
 
 class Motor:
     # Direction
@@ -47,15 +54,19 @@ class Motor:
 
     pulse = 0.001 #0.0007
     interval = 0.001 #0.0007
-    oneRevolution = STEPS
-
-    def __init__(self, step, direction, enable, ms1, ms2, ms3):
+    curPosition = 1
+    
+    def __init__(self, step, direction, enable, ms1, ms2, ms3, stepTotal = None):
         self.step = step
         self.direction = direction
         self.enable = enable
         self.ms1 = ms1
         self.ms2 = ms2
         self.ms3 = ms3
+        if stepTotal is None:
+            self.stepTotal = STEPS
+        else:
+            self.stepTotal = stepTotal
         return
 
     # Initialise GPIO pins for this bipolar motor
@@ -87,11 +98,11 @@ class Motor:
         GPIO.output(self.ms1,stepres[0])
         GPIO.output(self.ms2,stepres[1])
         GPIO.output(self.ms3,stepres[2])
-        self.oneRevolution = STEPS * stepres[3]
+        self.oneRevolution = self.stepTotal * stepres[3]
         return self.oneRevolution
 
     # Turn the motor
-    def turn(self,steps,direction):
+    def turn(self,steps,direction,lock=False):
         count = steps
         GPIO.output(self.enable,ENABLE)
         GPIO.output(self.direction,direction)
@@ -101,7 +112,8 @@ class Motor:
             GPIO.output(self.step,GPIO.LOW)
             time.sleep(self.interval)
             count -= 1
-        time.sleep(0.05) #MAR if enable/disable is used, this is neccessary to prevent sliding/overshooting
+        if lock: #MAR if enable/disable is used, this is neccessary to prevent sliding/overshooting
+            time.sleep(0.05)
         GPIO.output(self.enable,DISABLE)
         return
 
@@ -152,6 +164,7 @@ class Motor:
 
     # Homing the motor
     def home(self, he_pin = None, adjust_steps=None):
+        print("Did you mean to use this? Try rig_funcs.align_zero instead")
         # setup hall effect input
         inport = he_pin
         GPIO.setup(inport, GPIO.IN)
@@ -186,6 +199,7 @@ class Motor:
         #self.turn(adjust_steps,self.CLOCKWISE)
         
         GPIO.output(self.enable,DISABLE)
+        self.curPosition = 1
         return
     
     # Stop the motor (calls reset)
@@ -200,16 +214,16 @@ class Motor:
     # Set Step size
     def setStepSize(self,size):
 
-        if size == self.HALF:
+        if size == self.HALF or size == 'HALF':
             steps = self.setStepResolution(HalfStep)    
             self.interval = 0.0075 #0.0007
-        elif size == self.QUARTER:
+        elif size == self.QUARTER or size == 'QUARTER':
             steps = self.setStepResolution(QuarterStep) 
             self.interval = 0.001 #0.0007
-        elif size == self.EIGHTH:
+        elif size == self.EIGHTH or size == 'EIGHTH':
             steps = self.setStepResolution(EighthStep)
             self.interval = 0.001 #0.0007
-        elif size == self.SIXTEENTH:
+        elif size == self.SIXTEENTH or size == 'SIXTEENTH':
             steps = self.setStepResolution(SixteenthStep)   
             self.interval = 0.001 #0.0007
         else:
