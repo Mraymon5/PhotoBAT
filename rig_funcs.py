@@ -201,6 +201,7 @@ def configureIOPins():
                     if subPinN > 0 :GPIO.setup(subPinN, pinMode)
                 except Exception as e:
                     print(f"Could not configure {pinN}[{subPinN}]: {e}")
+        else:
             try:
                 if pinN == 'lickBeamPin':
                     if pinData > 0 :GPIO.setup(pinData, pinMode, pull_up_down = GPIO.PUD_UP)
