@@ -19,14 +19,9 @@ import numpy as np
 
 import RPi.GPIO as GPIO
 
-#%% Local Modules
-from rig_funcs import read_params
-
 #%%
 # The stepper motor can be driven in five different modes 
 # See http://en.wikipedia.org/wiki/Stepper_motor
-
-rigParams = read_params()
 
 # Step resolution (The last column is the multiplier for one revolution)
 FullStep = [0,0,0,1]
@@ -38,8 +33,19 @@ SixteenthStep = [1,1,1,16]
 # Other definitions
 ENABLE = GPIO.LOW
 DISABLE = GPIO.HIGH
-STEPS = rigParams['tableTotalSteps'] # 200 step motor (Full)
 
+#%% Import some Parameters
+script_dir = os.path.dirname(os.path.abspath(__file__))
+params_path = os.path.join(script_dir, 'BAT_params.txt')
+
+with open(params_path, 'r') as params:
+    paramsData = params.readlines()
+paramsData = [line.rstrip('\n') for line in paramsData]
+paramsData = [line.split('#')[0] for line in paramsData]
+paramsData = [line.split('=') for line in paramsData]
+tableTotalSteps = int([line[1] for line in paramsData if 'tableTotalSteps' in line[0]][0])
+
+#%%
 class Motor:
     # Direction
     CLOCKWISE = 0
@@ -56,17 +62,14 @@ class Motor:
     interval = 0.001 #0.0007
     curPosition = 1
     
-    def __init__(self, step, direction, enable, ms1, ms2, ms3, stepTotal = None):
+    def __init__(self, step, direction, enable, ms1, ms2, ms3, stepTotal = tableTotalSteps):
         self.step = step
         self.direction = direction
         self.enable = enable
         self.ms1 = ms1
         self.ms2 = ms2
         self.ms3 = ms3
-        if stepTotal is None:
-            self.stepTotal = STEPS
-        else:
-            self.stepTotal = stepTotal
+        self.stepTotal = stepTotal
         return
 
     # Initialise GPIO pins for this bipolar motor
