@@ -95,7 +95,7 @@ def update_sensor_display(sensor_labels):
     calibrateGUI.after(10, update_sensor_display, sensor_labels)
 
 def updateParameters():
-    global rigParams
+    global rigParams, Motor
     #Table Settings
     tableTotalSteps = int(tTotEnt.get()) #The total number of whole steps possible by the motor
     rigParams[tableTotalSteps] = tableTotalSteps
@@ -156,9 +156,13 @@ def updateParameters():
     print(f'Params saved as {rigParamsFile}')
     #Reconfigure Pins
     rig_funcs.configureIOPins()
+    #Reinitalize Motor
+    Motor = bipol.Motor(rigParams['stepPin'], rigParams['directionPin'], rigParams['enablePin'], rigParams['msPins'][0], rigParams['msPins'][1], rigParams['msPins'][2]) #initialize motor
+    Motor.setStepSize(rigParams['tableStepMode'])
+
     
 def updateStepMode(mode):
-    global rigParams, stepsPerTurn, tSpdBox,tInitBox
+    global rigParams, stepsPerTurn, tSpdBox, tInitBox, Motor
     tableStepMode = mode #The mode to operate the stepper motor in
     rigParams['tableStepMode'] = tableStepMode
     outtableStepMode = ["tableStepMode =", f"tableStepMode = {tableStepMode} #The step mode for controlling the motor"]
@@ -167,8 +171,9 @@ def updateStepMode(mode):
     tSpdBox.insert(0,rigParams['tableSpeed'][rigParams['tableStepMode']]) 
     tInitBox.delete(0,tk.END)
     tInitBox.insert(0,rigParams['tableInitSteps'][rigParams['tableStepMode']])
-    tableFrame.update_idletasks()  # Force update
     try:
+        #Reinitialize Motor
+        Motor = bipol.Motor(rigParams['stepPin'], rigParams['directionPin'], rigParams['enablePin'], rigParams['msPins'][0], rigParams['msPins'][1], rigParams['msPins'][2]) #initialize motor
         steps360 = Motor.setStepSize(rigParams['tableStepMode'])
         stepsPerTurn = steps360/rigParams['tableTotalPositions']
         homePosition()
@@ -179,12 +184,13 @@ def updateInitSteps():
     global rigParams
     global TablePosition
     stepDiff = rigParams['tableInitSteps'][rigParams['tableStepMode']] - int(tInitEnt.get())
-    rigParams['tableInitSteps'][rigParams['tableStepMode']] += stepDiff  #The total number of positions, including walls, on the table
+    print(f"Initial Value is: {rigParams['tableInitSteps'][rigParams['tableStepMode']]}, entry is: {int(tInitEnt.get())}, step Difference is: {stepDiff}")
+    rigParams['tableInitSteps'][rigParams['tableStepMode']] -= stepDiff  #The total number of positions, including walls, on the table
     #Had a test here to send the table home if it wasn't in the home position, but decided that may be a bad idea. Better to allow tuning from any position?
     if stepDiff >= 0:
-        Motor.turn(int(stepDiff), Motor.CLOCKWISE)
-    else:
         Motor.turn(int(stepDiff), Motor.ANTICLOCKWISE)
+    else:
+        Motor.turn(abs(int(stepDiff)), Motor.CLOCKWISE)
     tableInitSteps = rigParams['tableInitSteps']
     initvalues = [int(val) for val in tableInitSteps.values()]
     initvalues = ','.join(map(str, initvalues))
@@ -194,7 +200,8 @@ def updateInitSteps():
 #A function to send the table to the home position, and set up position dead-reckoning    
 def homePosition():
     global TablePosition
-    rig_funcs.align_zero(he_inport=rigParams['hallPin'], adjust_steps=rigParams['tableInitSteps'])
+    adjust_steps = rigParams['tableInitSteps'][rigParams['tableStepMode']]
+    rig_funcs.align_zero(he_inport=rigParams['hallPin'], adjust_steps=adjust_steps, stepMode = rigParams['tableStepMode'])
     TablePosition = 1
 
 #A function to change the table position, and udpate position dead-reckoning    
