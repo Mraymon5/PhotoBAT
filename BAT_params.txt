@@ -1,0 +1,25 @@
+#BAT Rig Params, for the PhotoBAT
+#Table stepper motor parameters:
+tableTotalSteps = 200 #The total number of full steps possible by the motor
+tableTotalPositions = 8 #The total number of positions, including walls, on the table
+tableStepMode = HALF #The step mode for controlling the motor
+#FULL, HALF, QUARTER, EIGHTH, SIXTEENTH
+tableInitSteps = 1,2,3,4,5 #The number of steps from the mag sensor to the home position
+tableSpeed = 0.01,0.0075,0.001,0.001,0.01 #Delay between steps when driving table
+
+
+#Pin assignments:
+stepPin = 24 #Pin assigned to motor control board to step the motor
+directionPin = 23 #Pin assigned to motor control board to control direction
+enablePin = 20 #Pin assigned to motor control board to enable/disable power
+msPins = 18,15,14 #MS1,MS2,MS3 Motor communication logic pins
+hallPin = 16 #Hall Effect positional sensor
+lickBeamPin = 6 #Pin for the beam-break input
+laserPin = 9 #Laser TTL output
+lickLEDPin = 21 #Pin for the beam-break indicator
+cueLEDPins = 13,19,26 #Blue, Green, and Red channel pins for the chamber cue LED
+intanBeamPin = 5 #Pin for beam indication output to intan
+intanTrialPin = 27 #Pin for trial indication output to intan
+intanSpoutPins = 2,3,4,10,0,0,0,0 #spouts 2,4,6,8: pins for spout indication output to intan
+
+
