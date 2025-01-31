@@ -5,6 +5,7 @@ import os
 import sys
 import random
 import pandas
+
 #%% Helper Functions
 isTrue = lambda x: str(str(x).lower() in {'1', 'true', 't'})
 # Function to read in values from params file and save them as int or None
@@ -15,6 +16,8 @@ def intOrNone(value, factor=1):
         return None
 
 #%% Make Parameters
+#TODO: add in laser trials
+#TODO: Update BAT parameters for arbitrary position number
 def makeParams(defaultVersion="PhotoBAT"):
     version = easygui.buttonbox(msg="What system are these parameters for?", title="Version Selection", choices=('PhotoBAT', "Davis Rig","IOC"),default_choice=defaultVersion)
     if version is None:
@@ -22,6 +25,11 @@ def makeParams(defaultVersion="PhotoBAT"):
         return(False)
     isDav=True if version == "Davis Rig" else False
     if version != "IOC":
+        if not isDav:
+            import rig_funcs
+            rigParams = rig_funcs.read_params()
+            spoutAddress = np.arange(2, rigParams['tableTotalPositions']+2,2)
+
         params = easygui.multenterbox('Please enter parameters for this experiment.\nPer-trial parameters may be set manually\nby editing the text of a params file.',
                                 'Experiment Parameters',
                                 ['0: Wait time before first trial to be delivered (30s)',
@@ -34,9 +42,10 @@ def makeParams(defaultVersion="PhotoBAT"):
                                 '7: Maximum lick count per trial (None)',
                                 '8: Use LED indicators? (T/F/Cue)',
                                 '9: Use behavior camera? (T/F)',
-                                '10: Param file Title'
+                                '10: Use laser? (False,Lick,Trial)',
+                                '11: Param file Title'
                                 ],
-                                [30,60,10,30,None,90,10,None,False,False,'params'])
+                                [30,60,10,30,None,90,10,None,False,False,False,'params'])
         if params is None:
             print('Exiting')
             return(False)
@@ -49,10 +58,11 @@ def makeParams(defaultVersion="PhotoBAT"):
         itiMax = int(params[4]) if params[4] != '' else None #None, iti
         exp_dur = float(params[5]) * 60 #90, turn into seconds, exp_dur
         max_lick_time = int(params[6]) if params[6] != '' else None #10, max_lick_time
-        max_lick_count = int(params[7]) if params[7] != '' else None #100
-        useLED = params[8] #0
-        useCamera = params[9] #0
-        fileTitle = params[10]
+        max_lick_count = int(params[7]) if params[7] != '' else None #None
+        useLED = params[8] #False
+        useCamera = params[9] #False
+        useLaser = params[10] #False
+        fileTitle = params[11] #'params'
         
         itiMax = itiMin if itiMax is None else int(itiMax)
 
@@ -61,17 +71,19 @@ def makeParams(defaultVersion="PhotoBAT"):
         
         # Get tastes and their spout locations
         if isDav:
-            bot_pos = ['']*16
+            NSpouts = 16
+            bot_pos = ['Water'] + ['']*(NSpouts-1)
             t_list = easygui.multenterbox('Please enter the taste to be used in each spout.',
                                         'Taste List',
                                         ['Spout {}'.format(i+1) for i in range(16)],
                                         values=bot_pos)
             taste_positions = [int(i+1) for i in range(len(t_list)) if len(t_list[i]) > 0]
         else:     
-            bot_pos = ['Water', '', '', '']
+            NSpouts = len(spoutAddress)
+            bot_pos = ['Water'] + ['']*(NSpouts-1)
             t_list = easygui.multenterbox('Please enter the taste to be used in each spout.',
                                         'Taste List',
-                                        ['Spout {}'.format(i) for i in ['2, Yellow','4, Blue','6, Green','8, Red']],
+                                        ['Spout {}'.format(i) for i in spoutAddress],
                                         values=bot_pos)
             taste_positions = [2*int(i+1) for i in range(len(t_list)) if len(t_list[i]) > 0]
         if t_list is None:
@@ -100,6 +112,7 @@ def makeParams(defaultVersion="PhotoBAT"):
         NTrials = len(tastes)*trials_per_taste
         LickTime = [max_lick_time]*NTrials
         LickCount = [max_lick_count]*NTrials
+        useLaser = [useLaser]*NTrials
         TubeSeq = trial_list
         if itiMax == itiMin:
             IPITimes = list(np.append(initial_wait,([itiMin]*(NTrials-1)))) #Make a list of IPIs with initial_wait as the first
@@ -108,7 +121,7 @@ def makeParams(defaultVersion="PhotoBAT"):
             IPITimes = [round(random.randrange(itiMin*1000,itiMax*1000)) for trialN in range(NTrials)]
         MaxWaitTime = [max_trial_time]*NTrials
         SessionTimeLimit = exp_dur
-        nTubes = 16 if isDav else 4
+        nTubes = 16 if isDav else NSpouts
         version = 'Davis Rig' if isDav else 'PhotoBAT'
         #%% Create Output
         outTitle = "[Trial Parameters]\n"
@@ -127,7 +140,8 @@ def makeParams(defaultVersion="PhotoBAT"):
         outMaxReTries = "MaxReTries=0\n"
         outSessionTimeLimit = f"SessionTimeLimit={round(SessionTimeLimit*1000)}\n"
         outLED = f"UseLED={useLED}\n"
-        outCam = f"UseCamera={useCamera}"
+        outCam = f"UseCamera={useCamera}\n"
+        outLaser = f"UseLaser={','.join(map(str, [trialN if trialN is not None else '' for trialN in useLaser]))}\n"
         if False: #isDav == 'True':
             outLines = (outTitle + outNumTubes + outSolutions + outConcs + outNTrials + outLickTime + 
                         outTubeSeq + outIPITimes + outIPIMin + outIPIMax + outMaxWait + 
@@ -135,7 +149,7 @@ def makeParams(defaultVersion="PhotoBAT"):
         else:    
             outLines = (outTitle + outNumTubes + outSolutions + outConcs + outNTrials + outLickTime + 
                         outLickCount + outTubeSeq + outIPITimes + outIPIMin + outIPIMax + outMaxWait + 
-                        outVersion + outMaxReTries + outSessionTimeLimit + outLED + outCam)
+                        outVersion + outMaxReTries + outSessionTimeLimit + outLED + outCam + outLaser)
         
         #%%
         proj_path = os.getcwd() #'/home/rig337-testpi/Desktop/katz_lickometer'
@@ -158,6 +172,7 @@ def makeParams(defaultVersion="PhotoBAT"):
 
         return outFile
     else:
+        #TODO add Laser stuff
         params = easygui.multenterbox('Please enter parameters for this experiment.\nPer-trial parameters may be set manually\nby editing the text of a params file.',
                                 'Experiment Parameters',
                                 ['0: Number of trials per taste (10)',
@@ -251,7 +266,7 @@ def makeParams(defaultVersion="PhotoBAT"):
         outIPIMax = f"IPImax={round(itiMax*1000)}\n"
         outVersion = f"Version={version}\n"
         outLED = f"UseLED={useLED}\n"
-        outCam = f"UseCamera={useCamera}"
+        outCam = f"UseCamera={useCamera}\n"
         outLines = (outTitle + outSolutions + outOpenTime + outValvePin + outIntanPin + 
                     outNTrials + outTubeSeq + outIPITimes + outIPIMin + outIPIMax + outVersion + outLED + outCam)
         
@@ -320,6 +335,10 @@ def readParameters(paramsFile):
             useCamera = [line[1] for line in paramsData if 'UseCamera' in line[0]][0]
         except:
             useCamera = False
+        try:
+            useLaser = [line[1].split(',') for line in paramsData if 'UseLaser' in line[0]][0]
+        except:
+            useLaser = [False]
         
         tastes = [stimN for stimN in Solutions if len(stimN) > 0]
         concs = [stimN for stimN in Concentrations if len(stimN) > 0]
@@ -343,6 +362,11 @@ def readParameters(paramsFile):
             LickCount = (LickCount * -(-NTrials//len(LickCount)))[:NTrials]
         if len(LickCount) > NTrials:
             LickCount = LickCount[:NTrials]
+        #Set Laser List
+        if len(useLaser) < NTrials:
+            useLaser = (useLaser * -(-NTrials//len(useLaser)))[:NTrials]
+        if len(useLaser) > NTrials:
+            useLaser = useLaser[:NTrials]
         #Set Trial List
         if len(TubeSeq) < NTrials:
             TubeSeq = (TubeSeq * -(-NTrials//len(TubeSeq)))[:NTrials]
@@ -366,7 +390,7 @@ def readParameters(paramsFile):
             raise Exception("Both LickTime and LickCount are None for some trials")
 
         trialData = pandas.DataFrame({'Trial':range(1,NTrials+1), 'Tube':TubeSeq, 'Conc':concList, 'Stim':tasteList, 'LickTime':LickTime, 'LickCount':LickCount,
-                                    'IPI':IPITimes,'MaxWait':MaxWaitTime})    
+                                    'IPI':IPITimes,'MaxWait':MaxWaitTime,'UseLaser':useLaser})    
         return(Version,trialData)
     else:
         OpenTimes = [line[1].split(',') for line in paramsData if 'OpenTimes' in line[0]][0]
