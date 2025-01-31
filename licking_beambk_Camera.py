@@ -516,7 +516,7 @@ try:
         else:
             rest_dir = -1
         dest_pos = cur_pos + rest_dir
-        dest_pos = dest_pos if dest_pos<=8 else dest_pos-8
+        dest_pos = dest_pos if dest_pos<=tot_pos else dest_pos-tot_pos
         
         # rotate to rest position
         turn_dir, n_shift = rotate_dir(cur_pos, dest_pos, tot_pos = tot_pos)
