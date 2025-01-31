@@ -35,16 +35,20 @@ ENABLE = GPIO.LOW
 DISABLE = GPIO.HIGH
 
 #%% Import some Parameters
-script_dir = os.path.dirname(os.path.abspath(__file__))
-params_path = os.path.join(script_dir, 'BAT_params.txt')
+def updateParameters():
+    global tableTotalSteps, tableSpeed
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    params_path = os.path.join(script_dir, 'BAT_params.txt')
 
-with open(params_path, 'r') as params:
-    paramsData = params.readlines()
-paramsData = [line.rstrip('\n') for line in paramsData]
-paramsData = [line.split('#')[0] for line in paramsData]
-paramsData = [line.split('=') for line in paramsData]
-tableTotalSteps = int([line[1] for line in paramsData if 'tableTotalSteps' in line[0]][0])
-
+    with open(params_path, 'r') as params:
+        paramsData = params.readlines()
+    paramsData = [line.rstrip('\n') for line in paramsData]
+    paramsData = [line.split('#')[0] for line in paramsData]
+    paramsData = [line.split('=') for line in paramsData]
+    tableTotalSteps = int([line[1] for line in paramsData if 'tableTotalSteps' in line[0]][0])
+    tableSpeed = [line[1].split(',') for line in paramsData if 'tableSpeed' in line[0]][0]
+    tableSpeed = [float(trialN) for trialN in tableSpeed]
+    return [tableTotalSteps, tableSpeed]
 #%%
 class Motor:
     # Direction
@@ -62,14 +66,14 @@ class Motor:
     interval = 0.001 #0.0007
     curPosition = 1
     
-    def __init__(self, step, direction, enable, ms1, ms2, ms3, stepTotal = tableTotalSteps):
+    def __init__(self, step, direction, enable, ms1, ms2, ms3):
         self.step = step
         self.direction = direction
         self.enable = enable
         self.ms1 = ms1
         self.ms2 = ms2
         self.ms3 = ms3
-        self.stepTotal = stepTotal
+        self.stepTotal, self.tableSpeed = updateParameters()
         return
 
     # Initialise GPIO pins for this bipolar motor
@@ -219,19 +223,19 @@ class Motor:
 
         if size == self.HALF or size == 'HALF':
             steps = self.setStepResolution(HalfStep)    
-            self.interval = 0.0075 #0.0007
+            self.interval = self.tableSpeed[1]
         elif size == self.QUARTER or size == 'QUARTER':
             steps = self.setStepResolution(QuarterStep) 
-            self.interval = 0.001 #0.0007
+            self.interval = self.tableSpeed[2]
         elif size == self.EIGHTH or size == 'EIGHTH':
             steps = self.setStepResolution(EighthStep)
-            self.interval = 0.001 #0.0007
+            self.interval = self.tableSpeed[3]
         elif size == self.SIXTEENTH or size == 'SIXTEENTH':
             steps = self.setStepResolution(SixteenthStep)   
-            self.interval = 0.001 #0.0007
+            self.interval = self.tableSpeed[4]
         else:
             steps = self.setStepResolution(FullStep)    
-            self.interval = 0.01 #0.0007
+            self.interval = self.tableSpeed[0]
 
         self.oneRevolution = steps
         return self.oneRevolution
