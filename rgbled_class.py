@@ -1,13 +1,7 @@
 # RGB LED class
 # by Jian-You Lin
 
-
-import sys
-import os
-import time
-
-import board
-import digitalio
+import RPi.GPIO as GPIO
 
 class RGBLed:
 
@@ -15,19 +9,18 @@ class RGBLed:
         self.red_pin = red_pin
         self.green_pin = green_pin
         self.blue_pin = blue_pin
+        GPIO.setup(red_pin,GPIO.OUT)
+        GPIO.setup(green_pin,GPIO.OUT)
+        GPIO.setup(blue_pin,GPIO.OUT)
         return
 
     # Turn on led
     def blink(self, pin=None):
-        led = digitalio.DigitalInOut(pin)
-        led.direction = digitalio.Direction.OUTPUT
-        led.value = True
+        GPIO.output(pin,GPIO.HIGH)
 
     # Turn off led
     def turn_off(self, pin=None):
-        led = digitalio.DigitalInOut(pin)
-        led.direction = digitalio.Direction.OUTPUT
-        led.value = False
+        GPIO.output(pin,GPIO.LOW)
         
     def red_on(self):
         self.blink(self.red_pin)
