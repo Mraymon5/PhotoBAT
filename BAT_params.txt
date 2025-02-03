@@ -22,4 +22,4 @@ intanBeamPin = 5 #Pin for beam indication output to intan
 intanTrialPin = 27 #Pin for trial indication output to intan
 intanSpoutPins = 2,3,4,10,0,0,0,0 #spouts 2,4,6,8: pins for spout indication output to intan
 
-
+lickMode = photo #photo or cap, for photobeam or capacitive touch.
