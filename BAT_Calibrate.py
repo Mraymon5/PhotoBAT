@@ -355,8 +355,9 @@ try:
     tk.Label(tableFrame, text="Initial Steps:").grid(row=rowN, column=0, padx=10, pady=5)
     tInitEnt = tk.IntVar()
     tInitEnt.set(rigParams['tableInitSteps'][rigParams['tableStepMode']])
-    tInitBox = tk.Spinbox(tableFrame, textvariable=tInitEnt, command= updateInitSteps, width=6)
+    tInitBox = tk.Spinbox(tableFrame, textvariable=tInitEnt, from_=-50,to=50, increment=1, command= updateInitSteps, width=6)
     tInitBox.grid(row=rowN, column=1, padx=10, pady=5)
+    tInitBox.bind("<Return>", lambda event: updateInitSteps())
     
     rowN += 1
     tk.Label(tableFrame, text="Step Delay:").grid(row=rowN, column=0, padx=10, pady=5)
