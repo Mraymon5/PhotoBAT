@@ -125,7 +125,7 @@ def selectOutput():
     tempFolder = easygui.diropenbox(msg="Select an Output Directory", default=outputFolder)
     if tempFolder is not None:
         outputFolder = tempFolder
-        outputLabel.config(text=outputFolder)
+        outputEnt.set(outputFolder)
         update_line_in_file(file_path = rigParamsFile, keyword="outputFolder =", new_value=f'outputFolder = {outputFolder} #Path to last output directory')
 
 def runConfig():
@@ -188,11 +188,13 @@ OutputFrame = ttk.LabelFrame(root, text="Output Folder")
 OutputFrame.grid(row=1, column=0, padx=10, pady=10)
 #Field showing output folder. Autoload last, save to machine params
 tk.Label(OutputFrame, text="Output Folder:").grid(row=0, column=0, padx=10, pady=5)
-outputLabel = tk.Label(OutputFrame, text=f"{outputFolder}")
+outputEnt = tk.StringVar()
+outputEnt.set(outputFolder)
+outputLabel = tk.Label(OutputFrame,textvariable=outputEnt)
 outputLabel.grid(row=0, column=1, padx=10, pady=5)
 #Field for entering new folder path
-outputEnt = tk.Entry(OutputFrame, textvariable=tk.IntVar(value=outputFolder))
-outputEnt.grid(row=1, column=0, padx=10, pady=5)
+outputEntBox = tk.Entry(OutputFrame, textvariable=outputEnt)
+outputEntBox.grid(row=1, column=0, padx=10, pady=5)
 #Button to update output folder?
 tk.Button(OutputFrame, text="Update Folder", command=updateFolder).grid(row=1, column=1, padx=10, pady=10)
 #Button to open folder dialog
