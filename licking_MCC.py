@@ -13,6 +13,8 @@ import argparse
 import random
 from datetime import datetime
 import threading
+import tkinter as tk
+import tkintertable
 
 #Currently unused modules
 if False:
@@ -29,10 +31,7 @@ if sys.platform.startswith('linux'):
 #    from uldaq import DaqDevice, DioInfo, DigitalPortIoType, InterfaceType
 #    import uldaq as ul
     import board
-    from bipolar_class import Motor
-    from bipolar_class import rotate_dir
     from rgbled_class import RGBLed
-    from turn_motor import *
     print("Using uldaq for Linux")
 elif sys.platform.startswith('win'):
 #    from mcculw import ul
@@ -43,28 +42,12 @@ elif sys.platform.startswith('win'):
 else:
     raise OSError("Unsupported platform")
 
-#%% Local pi functions
+#%% Local py functions
 import CameraControl
-import MCC_Setup; mcc = MCC_Setup.MCCInterface()
+from MakeParams import readParameters
+import MCC_Setup; mcc = MCC_Setup.MCCInterface(); dav = MCC_Setup.DavRun()
 
 #%% Helper Functions
-# Function to read in a specific bit from the MCC sensor
-def getBit(portType, channel, sensorState = None): #sensor_state
-    if sensorState is None:
-        sensorState = mcc.d_in(board_num, portType)
-    return (sensorState >> channel) & 1
-
-def setBit(portType, channel, value):
-    # Read the current state of the port
-    current_state = mcc.d_in(board_num, portType)
-    # Set the specific bit without altering others
-    if value:
-        new_state = current_state | (1 << channel) #set a channel High
-    else:
-        new_state = current_state & ~(1 << channel) #set a channel Low
-    # Write the new state back to the port
-    mcc.d_out(board_num, portType, new_state)
-
 # Function to read in values from params file and save them as int or None
 def intOrNone(value, factor=1):
     try:
@@ -75,153 +58,236 @@ def intOrNone(value, factor=1):
 # Function to allow flexible inputs for True in user-supplied strings
 isTrue = lambda x: str(str(x).lower() in {'1', 'true', 't'})
 
-# Motor control parameters and functions
-board_num = 0
-last_step_index = {} # Global variable to keep track of the last step index for each motor
-stop_motor = threading.Event()
-motor_stopped = threading.Event()
+#GUI Functions
+def on_close():
+    abortSession = easygui.ccbox(msg="Terminate Session?",title="Terminate Check")
+    if abortSession:
+        sessionGUI.destroy()  # Destroy the Toplevel window
+        if not isChild: root.destroy()    # Destroy the hidden root window
+        raise KeyboardInterrupt
+    else:
+        pass
+#Function to start session
+def runSession():
+    runButton.destroy()  # Destroy the Toplevel window
+    abortButton = tk.Button(controlFrame,text="Abort",command=on_close)
+    abortButton.grid(row=0, column=0, padx=10, pady=10)
+    global curPos
+    shutterThread = None #Add this so that the thread can be resolved before shutterThread is instanced
+    #Final Check
+    #input('===  Please press ENTER to start the experiment ===')
+    print('\n=== Press Ctrl-C to abort session ===\n')
 
-shutterChannels = [0, 1, 2, 3]  # Motor 1 on channels A0-A3
-shutterMagChannel = 5 #Mag sensor on channel B5
-shutterInitSteps = -50 #The number of steps from the mag sensor to the "closed" position
-shutterRunSteps = 100 #The number of steps to open/close the shutter
-shutterDir = 1 #The base direction of the shutter
-shutterSpeed = 0.005
+    # save trial start time
+    exp_init_time = time.time()
+    startIPI = exp_init_time
 
-tableChannels = [4, 5, 6, 7]  # Motor 2 on channels A4-A7
-tableMagChannel = 4 #Mag sensor on channel B4
-tableInitSteps = -17 #The number of steps from the mag sensor to the home position
-tableRunSteps = 125 #The number of steps between bottle positions
-tableDir = 0 #The base direction of the table
-tableSpeed = 0.005
+    # Turn on white LED to set up the start of experiment, not implemented
+    #if useLED == 'True' or useLED == 'Cue': led.white_on()
 
-def step_motor(motor_channels, steps, delay=0.01, direction=0):
-    global last_step_index
-    global stop_motor
-    motor_key = tuple(motor_channels)
-    # Full-step sequence
-    step_sequence = [
-        #0b1110,  # Step 0.5
-        0b1010,  # Step 1
-        #0b1011,  # Step 1.5
-        0b1001,  # Step 2
-        #0b1101,  # Step 2.5
-        0b0101,  # Step 3
-        #0b0111,  # Step 3.5
-        0b0110,  # Step 4
-    ]
+    #%% Open the trial loop
+    cleanRun = False
+    try:
+        for trialN, spoutN in enumerate(TubeSeq): #trialN was index, spoutN was trial #spoutN = 2; trialN = 1
+            #Set index for identifying stimuli
+            #taste_idx = int((spoutN - 2) / 2) #TODO this is a problem. spoutN is TubeSeq{i}, Tubeseq{i} is just the list of positions
+            #taste_idx is used to index stimuli and concentration data, tastes and concs
+            
+            #Check max session time
+            if time.time() - exp_init_time >= SessionTimeLimit: #If session duration expires, exit the for loop
+                break
 
-    # Reverse the sequence for backward direction
-    if (steps < 0):
-        steps = abs(steps)
-        direction = not direction
-    
-    if direction:
-        step_sequence = step_sequence[::-1]
+            # rotate motor to move spout outside licking hole
+            dest_pos = TubeSeq[trialN]
+            dav.moveTable(movePos=dest_pos-curPos)
+            curPos = dest_pos
+
+            #Run Trial IPI
+            time.sleep(IPITimes[trialN] - (startIPI - time.time()))
+
+            # Open Shutter, in a thread so that other operations can proceed
+            shutterThread = threading.Thread(target=dav.moveShutter, kwargs={'Open':True})
+            shutterThread.start()
         
-    # Read in the current state of the output to avoid writing over the other motor
-    current_state = mcc.d_in(board_num=board_num, port = 0)
-    
-    # Initialize last step index for the motor if not already set
-    if motor_key not in last_step_index:
-        last_step_index[motor_key] = 0  # Start at step 0 (step 1 in the sequence)
+            # turn on nose poke LED cue and send signal to intan
+            if useLED == 'Cue':
+                pass #Not implemented yet
+            mcc.setBit(portType=trialTTL[0], channel=trialTTL[1], value=1)
+            
+            # on-screen reminder
+            print("\n")
+            print("Trial {}_spout{} in Progress. Max lick time = {}, Max lick count = {}".format(trialN, spoutN, LickTime[trialN], LickCount[trialN]))
+            
+            # empty list to save licks for each trial
+            this_spout = 'Position {}'.format(spoutN)
+            licks[this_spout].append([])
+            filteredLicks = 0
+            # get the number of current trial for that particular spout
+            this_trial_num = len(licks[this_spout]) - 1 
 
-    # Start from the last step index
-    current_step_index = last_step_index[motor_key]
-    
-    stepped = 0
-    while (stepped < steps) and not stop_motor.is_set():
-    #for _ in range(steps):
-        #if stop_motor.is_set(): #Redundant check of stop_motor
-        #    break
-        #print(f'Steps: {stepped}, stop_motor: {stop_motor}') #diagnostic
-        # Get the current step from the sequence
-        step = step_sequence[current_step_index]
+            # detecting the current status of touch sensor
+            last_poke = mcc.getBit(portType=dav.lickSensor[0], channel=dav.lickSensor[1])
+            print("Lick sensor is clear") if not last_poke else print ("Lick sensor is blocked")
+            while last_poke: # stay here if lick sensor is touched
+                last_poke = mcc.getBit(portType=dav.lickSensor[0], channel=dav.lickSensor[1]) # make sure nose-poke is not blocked when starting
+            
+            #Save Trial Start Time
+            trial_start_time = time.time()
+            trial_init_time = trial_start_time
+            last_lick = trial_start_time
+            trialTimeLimit = MaxWaitTime[trialN] #Initially set the trial time limit to the max wait for this trial
+            print('Start detecting licks/nosepokes')
+            #Start the camera
+            if useCamera == 'True': camera.startBuffer()
 
-        # Clear the motor's 4 bits using a mask
-        mask = ~(0b1111 << motor_channels[0])
-        current_state &= mask  # Clears the 4 bits for the motor
+            while ((time.time() - trial_init_time < trialTimeLimit) if LickTime[trialN] is not None else True) and \
+                (time.time() - exp_init_time < SessionTimeLimit) and \
+                (len(licks[this_spout][this_trial_num]) < LickCount[trialN] if LickCount[trialN] is not None else True):
+                current_poke = mcc.getBit(portType=dav.lickSensor[0], channel=dav.lickSensor[1])
+                
+                # First check if transitioned from not poke to poke.
+                if current_poke == 1 and last_poke == 0: # 0 indicates poking
+                    new_lick = time.time() #save the time of the new lick onset. was beam_break
+                    if (useLED == 'True'): mcc.setBit(portType=lickLED[0], channel=lickLED[1], value=1)
+                    #mcc.setBit(portType=lickTTL[0], channel=lickTTL[1], value=1)
+                    
+                # Next check if transitioned from poke to not poke.
+                if current_poke == 0 and last_poke == 1:
+                    off_lick = time.time() #save the time the lick sensor stops. was beam_unbroken
+                    if (useLED == 'True'): mcc.setBit(portType=lickLED[0], channel=lickLED[1], value=0)
+                    #mcc.setBit(portType=lickTTL[0], channel=lickTTL[1], value=0)
 
-        # Set the new 4-bit step sequence shifted to the motor channels
-        new_state = current_state | (step << motor_channels[0])
+                    if (off_lick - new_lick > 0.02) and (off_lick - new_lick < 0.12): # to avoid noise (from motor)- induced licks TODO: See if these limits can be tuned tighter. Also, add in an output of the number of filtered licks
+                        licks[this_spout][this_trial_num].append(round((new_lick-last_lick)*1000))
+                        if len(licks[this_spout][this_trial_num]) == 1:
+                            trial_init_time = new_lick #if lick happens, reset the trial_init time
+                            trialTimeLimit = LickTime[trialN] if LickTime[trialN] is not None else 6000 #If a lick happens, reset the trial time limit to maximal lick time
+                            if useCamera == 'True': camera.saveBufferAndCapture(duration=trialTimeLimit, title=f'{subjID}_trial{trialN}', outputFolder=dat_folder, start_time = trial_init_time)
+                        last_lick = new_lick
+                        print('Lick_{}'.format(len(licks[this_spout][-1])))
+                    else:
+                        filteredLicks += 1
+                        print(f'Rejected lick: {filteredLicks}')
+        
+                # Update last state and wait a short period before repeating.
+                last_poke = current_poke
+                #time.sleep(0.001)
+                
+            #Start the clock for IPI
+            startIPI = time.time()
+        
+            # Close Shutter
+            dav.moveShutter(Open=False)
+            
+            # Update LEDs and Intan outs
+            if useLED == 'Cue':
+                pass
+            
+            if useLED == 'True': mcc.setBit(portType=lickLED[0], channel=lickLED[1], value=0)
+            time.sleep(0.001)
+            mcc.setBit(portType=trialTTL[0], channel=trialTTL[1], value=0)
+            
+            # Turn off nosepoke detection
+            mcc.setBit(portType=lickTTL[0], channel=lickTTL[1], value=0)
+            
+            # Reset the Camera
+            if useCamera == 'True':
+                camera.cleanup()
+                camera.setupCapture(mode = camMode, autoExposure = False, exposure = exposure, gain = gain, buffer_duration = buffer_duration)
+                
+            #Write the outputs
+            #Save Trial Start time
+            with open(timeFile, 'a') as timeKeeper:
+                timeKeeper.write(f'{trialN+1}, {trial_start_time}\n')
+            trialLicks = licks[this_spout][this_trial_num]
+            NLicks = len(trialLicks)
+            if NLicks == 0:
+                latency = round(MaxWaitTime[trialN]*1000)
+            else:
+                latency = trialLicks[0]
+            timeTemp = [LickTime[trialN] if LickTime[trialN] is not None else 'None'][0]
+            trialLine = f"{trialN+1:>4},{spoutN:>4},{Concentrations[spoutN-1]:>{padConc}},{Solutions[spoutN-1]:>{padStim}},{IPITimes[trialN]:>7},{timeTemp:>7},{NLicks:>7},{latency:>{padLat}},{0:>7}\n"  # Left-aligned, padded with spaces
+            with open(outFile, 'r') as outputFile:
+                outputData = outputFile.readlines()
+                outputData.insert((skipLines+trialN),trialLine)
+            with open(outFile, 'w') as outputFile:
+                outputFile.writelines(outputData)
+                outLicks = f',{",".join(map(str, trialLicks[1:]))}' if len(trialLicks) > 0 else ''
+                outputFile.write(f'{trialN + 1}{outLicks}\n')
 
-        # Write the updated state to the port
-        mcc.d_out(board_num = board_num, port = 0, data = new_state)
-        time.sleep(delay)
+            # print out number of licks being made on this trial
+            print('{} licks on Trial {}'.format(NLicks, trialN))
+            print('\n=====  Inter-Trial Interval =====\n')
+        
+        #Note a clean run
+        cleanRun = True
+        
+    #%% Ending the session
+    finally:
+        if not cleanRun:
+            print("Session interrupted")
 
-        # Move to the next step in the sequence
-        current_step_index = (current_step_index + 1) % len(step_sequence)
-        stepped += 1
-    motor_stopped.set()
+        if shutterThread and shutterThread.is_alive():
+            shutterThread.join()
 
-    # Update the last step index for the motor
-    last_step_index[motor_key] = current_step_index
-    
-    # Set motor to idle
-    step = 0b1111
-    mask = ~(0b1111 << motor_channels[0]) # Clear the motor's 4 bits using a mask
-    current_state &= mask  # Clears the 4 bits for the motor
-    new_state = current_state | (step << motor_channels[0]) # Set the new 4-bit step sequence shifted to the motor channels
-    mcc.d_out(board_num = board_num, port = 0, data = new_state) # Write the updated state to the port
-    stop_motor.clear()
-    
-def moveShutter(Open = False, Init = False):
-    global stop_motor
-    if Init:
-        print("Backing up...")
-        if getBit(portType = 1, channel = shutterMagChannel):
-            step_motor(motor_channels = shutterChannels, steps = 50, direction = shutterDir, delay=shutterSpeed)
-        print("Done. Advancing to mag switch...")
-        stop_motor.clear()
-        motor_thread = threading.Thread(target=step_motor, args=(shutterChannels, 10000, shutterSpeed, not shutterDir))
-        motor_thread.start()
-        while not getBit(portType = 1, channel = shutterMagChannel):
-            time.sleep(0.01)
-        stop_motor.set()  # Stop the motor loop
-        print(f'Main Loop Stop_Motor: {stop_motor}')
-        if motor_thread.is_alive():
-            motor_thread.join()
-        stop_motor.clear()
-        motor_stopped.clear()
-        print("Done. Moving to home position...")
-        step_motor(motor_channels = shutterChannels, steps = shutterInitSteps, direction = shutterDir)
-        print("Done. Shutter initialized.")
-    else:
-        if Open:
-            step_motor(motor_channels = shutterChannels, steps = shutterRunSteps, direction = shutterDir, delay = shutterSpeed)
-        else:
-            step_motor(motor_channels = shutterChannels, steps = shutterRunSteps, direction = not shutterDir, delay = shutterSpeed)
+        # turn off LEDs and Intan outs
+        mcc.setBit(portType=lickLED[0], channel=lickLED[1], value=0)
+        mcc.setBit(portType=trialTTL[0], channel=trialTTL[1], value=0)
+        mcc.setBit(portType=lickTTL[0], channel=lickTTL[1], value=0)
+        
+        # Return spout to home, close shutter
+        dav.moveTable(Init=True)
+        dav.moveShutter(Init=True)   
+        mcc.d_close_port()
+        
+        #Shut down camera
+        if useCamera == 'True': camera.cleanup()
+        
+        #print(licks)
+        for spout in spout_locs:
+            num_licks_trial = [len(i) for i in licks[spout]]
+            print(spout, num_licks_trial)
+            
+            tot_licks = np.concatenate(licks[spout])
+            print("Total number of licks on {}: {}".format(spout, len(tot_licks)))
+        
+        if 0: #old output files, disabled
+            with open(os.path.join(dat_folder, "{}_lickTime.pkl".format(subjID)), 'wb') as handle:
+                pickle.dump(licks, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            
+            # save experimental info
+            param_dict = {}
+            param_dict['initial_wait'] = IPITimes[0]
+            param_dict['SessionTimeLimit'] = SessionTimeLimit
+            param_dict['MaxWaitTime'] = [f'{i}' for i in MaxWaitTime]
+            param_dict['LickTime'] = [f'{i}' for i in LickTime]
+            param_dict['IPITimes'] = [f'{i}' for i in IPITimes]
+            param_dict['taste_list'] = {k:t for k, t in zip([f'spout-{(i+1)*2}' for i in range(4)], t_list)}
+            param_dict['TubeSeq'] = [f'{i}' for i in TubeSeq]
+            param_dict['licks'] = licks
+            
+            with open(os.path.join(dat_folder, "{}_exp_info.json".format(subjID)), 'w') as f:
+                json.dump(param_dict, f)
+        
+        print('======= Remove rat from the box to its home cage =======')
+        sessionGUI.destroy()  # Destroy the Toplevel window
+        if not isChild: root.destroy()    # Destroy the hidden root window
 
-def moveTable(movePos = 0, Init = False):
-    global stop_motor
-    if Init:
-        print("Backing up...")
-        step_motor(motor_channels = tableChannels, steps = 50, direction = tableDir, delay=tableSpeed)
-        print("Done. Advancing to mag switch...")
-        stop_motor.clear()
-        motor_thread = threading.Thread(target=step_motor, args=(tableChannels, 10000, tableSpeed, not tableDir))
-        motor_thread.start()
-        while not getBit(portType = 1, channel = tableMagChannel):
-            time.sleep(0.01)
-        stop_motor.set()  # Stop the mtotor loop
-        print(f'Main Loop Stop_Motor: {stop_motor}')
-        if motor_thread.is_alive():
-            motor_thread.join()
-        stop_motor.clear()
-        print("Done. Moving to home position...")
-        step_motor(motor_channels = tableChannels, steps = tableInitSteps, direction = tableDir)
-        print("Done. Table initialized.")
-    else:
-        if movePos > 0:
-            step_motor(motor_channels = tableChannels, steps = movePos*tableRunSteps, direction = tableDir, delay = tableSpeed)
-        else:
-            step_motor(motor_channels = tableChannels, steps = abs(movePos)*tableRunSteps, direction = not tableDir, delay = tableSpeed)
+
+#Make tables that don't allow editing
+class passiveTableCanvas(tkintertable.TableCanvas):
+    def __init__(self, master=None, *args, **kw):
+        super().__init__(master, *args, **kw)
+        self.columnactions = {}
+
+    def drawCellEntry(self, row, col):
+        pass
+
 
 #%% Setup Session Parameters
-
-#TODO: Add in a option to set max licks per trial instead of max time, DONE, untested
-#TODO: I think the max licks may break compatibility with the camera trigger in some circumstances, FIXED Untested
-#TODO: Make the Gui more friendly, DONE, untested
+#TODO: Add a tkinter Gui (in progress: Main_Menu.py)
+#TODO: There may be an issue with the program assuming that bottles are only in even-numbered slots
+#TODO: Gui for during the session that shows timers, licks, etc.
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = 'Script for running a BAT session with photobeam lickometer')
@@ -238,11 +304,32 @@ ParamsFile = args.ParamsFile
 useLED = args.LED
 useCamera = args.Camera
 #print(args.subjID)
+proj_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
 
 if args.OutputFolder is not None:
-    proj_path = args.OutputFolder
+    out_path = args.OutputFolder
 else:
-    proj_path = os.getcwd() #'/home/rig337-testpi/Desktop/katz_lickometer'
+    out_path = os.path.join(proj_path, 'data')
+try:
+    os.mkdir(out_path)
+    print("No parent data folder, making one")
+except:
+    if os.path.isdir(out_path):
+        print("Parent data folder found")
+    else:
+        print("Could not find or create parent data folder, can't save data")
+
+dat_folder = os.path.join(out_path, '{}'.format(date))
+try:
+    os.mkdir(dat_folder)
+    print("No session data folder, making one")
+except:
+    if os.path.isdir(dat_folder):
+        print("Session data folder found")
+    else:
+        print("Could not find or create session data folder, can't save data")
+print(f'Data folder is, {dat_folder}')
+
     
 if os.path.isdir(os.path.join(proj_path, 'params')):
     paramsFolder = os.path.join(proj_path, 'params/*')
@@ -294,7 +381,7 @@ if ParamsFile is not None:
         useCamera = useCamera
     
     tastes = [stimN for stimN in Solutions if len(stimN) > 0]
-    taste_positions = [2*int(stimN+1) for stimN in range(len(Solutions)) if len(Solutions[stimN]) > 0]
+    taste_positions = [int(stimN+1) for stimN in range(len(Solutions)) if len(Solutions[stimN]) > 0]
     concs = [stimN for stimN in Concentrations if len(stimN) > 0]
     
     #Setup Messages
@@ -385,7 +472,7 @@ else:
     
     # Setting up spouts for each trial
     tastes = [i for i in t_list if len(i) > 0]
-    taste_positions = [2*int(i+1) for i in range(len(t_list)) if len(t_list[i]) > 0]
+    taste_positions = [int(i+1) for i in range(len(t_list)) if len(t_list[i]) > 0]
     
     concs = easygui.multenterbox('Please enter the concentration of each taste.',
                                   'Concentration List',
@@ -411,27 +498,6 @@ useCamera = isTrue(useCamera)
 # Make empty list to save lick data
 spout_locs = ['Position {}'.format(i) for i in taste_positions]
 licks = {spout:[] for spout in spout_locs}
-
-
-try:
-    os.mkdir(os.path.join(proj_path, 'data'))
-    print("No parent data folder, making one")
-except:
-    if os.path.isdir(os.path.join(proj_path, 'data')):
-        print("Parent data folder found")
-    else:
-        print("Could not find or create parent data folder, can't save data")
-
-dat_folder = os.path.join(proj_path, 'data', '{}'.format(date))
-try:
-    os.mkdir(dat_folder)
-    print("No session data folder, making one")
-except:
-    if os.path.isdir(os.path.join(proj_path, 'data')):
-        print("Session data folder found")
-    else:
-        print("Could not find or create session data folder, can't save data")
-print(f'Data folder is, {dat_folder}')
 
 #%% Setup the output files
 fileTail = ''
@@ -470,8 +536,14 @@ with open(timeFile, "w") as timeKeeper:
     timeKeeper.write('')
 
 # Get the longest character width provided to stimulus and concentration
-padStim = max([len(str(stimN)) for stimN in tastes]) + 1
-padConc = max([len(str(stimN)) for stimN in concs]) + 1
+try:
+    padStim = max([len(str(stimN)) for stimN in tastes]) + 1
+except:
+    padStim = 1
+try:
+    padConc = max([len(str(stimN)) for stimN in concs]) + 1
+except:
+    padConc = 1
 padLat = len(str(round(max(MaxWaitTime)*1000))) + 1
 
 if 0: # This is strictly for testing outputs and should be disabled or removed for actual sessions
@@ -497,19 +569,17 @@ print([f'Spout {taste_positions[i]}: {tastes[i]}' for i in range(len(tastes))])
 print('Taste Sequence: {}'.format(TubeSeq))
 
 #%% Setup Hardware
-#TODO: replace all of this with MCC
-
 # Set up MCC ports
 try:
     # Set Port A as output for motor relays
-    mcc.d_config_port(board_num = board_num, port = 0, direction = 'output')
+    mcc.d_config_port(board_num = dav.boardNum, port = 0, direction = 'output')
 
     # Set Port B as input for 5V TTL sensors
-    mcc.d_config_port(board_num = board_num, port = 1, direction = 'input')
+    mcc.d_config_port(board_num = dav.boardNum, port = 1, direction = 'input')
 
     # Set Port C as output for LED indicators or other outputs
-    mcc.d_config_port(board_num = board_num, port = 2, direction = 'output')
-    mcc.d_config_port(board_num = board_num, port = 3, direction = 'output')
+    mcc.d_config_port(board_num = dav.boardNum, port = 2, direction = 'output')
+    mcc.d_config_port(board_num = dav.boardNum, port = 3, direction = 'output')
 
     print("Ports configured successfully.")
 
@@ -517,26 +587,11 @@ except mcc.ul.ULError as e:
     print(f"Error configuring ports: {e}")
 
 # Initialize Table and Shutter
-moveShutter(Init=True)
-moveTable(Init=True)
-
+dav.moveShutter(Init=True)
+dav.moveTable(Init=True)
 
 # setup motor [40 pin header for newer Raspberry Pi's]
-step = 24       # Pin assigned to motor controller steps
-direction = 23  # Pin assigned to motor controller direction
-enable = 25     # Not required - leave unconnected
-ms1 = 18
-ms2 = 15
-ms3 = 14
-he_pin = 16     # Hall effect pin
-cur_pos = 1     # Initial position of table should be 1
-
-# setup input for beam break detection
-lickSensor = [1, 7] #port B, channel 7
-
-#getBit(portType=lickSensor[0], channel=lickSensor[1])
-
-
+curPos = 1 # Initial position of table should be 1
 # setup RGB LEDs, not implemented
 #if sys.platform.startswith('linux'):
 #    red_pin, green_pin, blue_pin = board.D13, board.D19, board.D26
@@ -553,7 +608,6 @@ lickTTL = [2, 0] #port CL, channel 0
 # setup TTL out for trial signal
 trialTTL = [2, 1] #port CL, channel 1
 
-
 # Setup Camera: test settings with CamerControl.preview
 if useCamera == 'True':
     #CameraControl.preview(mode=2)
@@ -565,195 +619,35 @@ if useCamera == 'True':
     camera.setupCapture(mode = camMode, autoExposure = False, exposure = exposure, gain = gain, buffer_duration = buffer_duration, zeroTime = zeroTime, verbose=True)
     
 #%% Finish initializing the session
-#Final Check
-input('===  Please press ENTER to start the experiment ===')
-print('\n=== Press Ctrl-C to abort session ===\n')
+# GUI setup
+if not tk._default_root:
+    root = tk.Tk()  # Create a root window if none exists
+    root.withdraw()  # Hide the root window since we only want Toplevel
+    isChild = False
+else:
+    isChild = True
+    root = tk._default_root  # Use the existing root
+sessionGUI = tk.Toplevel(root)
+sessionGUI.title("Motor and Sensor Calibration")
+sessionGUI.protocol("WM_DELETE_WINDOW", on_close)
+version, trialData = readParameters(ParamsFile)
+tableFrame = tk.LabelFrame(sessionGUI, text = "Session Parameters")
+tableFrame.grid(row=0, column=0, padx=10, pady=10)
+table_model = tkintertable.TableModel()
+table_model.importDict(trialData.to_dict(orient="index"))
+# Create and display the table
+paramTable = passiveTableCanvas(tableFrame, model=table_model)
+paramTable.show()
 
-# save trial start time
-exp_init_time = time.time()
-startIPI = exp_init_time
+#Frame for controls
+controlFrame = tk.LabelFrame(sessionGUI, text = "Session Controls")
+controlFrame.grid(row=0, column=1, padx=10, pady=10)
 
-# Turn on white LED to set up the start of experiment
-#if useLED == 'True' or useLED == 'Cue': led.white_on()
+#Run Session Button
+runButton = tk.Button(controlFrame, text="Run Session", command=runSession)
+runButton.grid(row=0, column=0, padx=10, pady=10)
 
-#%% Open the trial loop
-cleanRun = False
-try:
-    for trialN, spoutN in enumerate(TubeSeq): #trialN was index, spoutN was trial #spoutN = 2; trialN = 1
-        #Set index for identifying stimuli
-        taste_idx = int((spoutN - 2) / 2)
-        
-        #Check max session time
-        if time.time() - exp_init_time >= SessionTimeLimit: #If session duration expires, exit the for loop
-            break
+sessionGUI.mainloop()
 
-        # rotate motor to move spout outside licking hole
-        dest_pos = TubeSeq[trialN]
-        moveTable(movePos=dest_pos-cur_pos)
-        cur_pos = dest_pos
+#read params and show a table
 
-        #Run Trial IPI
-        time.sleep(IPITimes[trialN] - (startIPI - time.time()))
-
-        # Open Shutter, in a thread so that other operations can proceed
-        shutterThread = threading.Thread(target=moveShutter(Open=True))
-        shutterThread.start()
-    
-        # turn on nose poke LED cue and send signal to intan
-        if useLED == 'Cue':
-            pass #Not implemented yet
-        setBit(portType=trialTTL[0], channel=trialTTL[1], value=1)
-        
-        # on-screen reminder
-        print("\n")
-        print("Trial {}_spout{} in Progress. Max lick time = {}, Max lick count = {}".format(trialN, spoutN, LickTime[trialN], LickCount[trialN]))
-        
-        # empty list to save licks for each trial
-        this_spout = 'Position {}'.format(spoutN)
-        licks[this_spout].append([])
-        filteredLicks = 0
-        # get the number of current trial for that particular spout
-        this_trial_num = len(licks[this_spout]) - 1 
-
-        # detecting the current status of touch sensor
-        last_poke = getBit(portType=lickSensor[0], channel=lickSensor[1])
-        print("Lick sensor is clear") if not last_poke else print ("Lick sensor is blocked")
-        while last_poke: # stay here if lick sensor is touched
-            last_poke = getBit(portType=lickSensor[0], channel=lickSensor[1]) # make sure nose-poke is not blocked when starting
-        
-        #Save Trial Start Time
-        trial_start_time = time.time()
-        trial_init_time = trial_start_time
-        last_lick = trial_start_time
-        trialTimeLimit = MaxWaitTime[trialN] #Initially set the trial time limit to the max wait for this trial
-        print('Start detecting licks/nosepokes')
-        #Start the camera
-        if useCamera == 'True': camera.startBuffer()
-
-        while ((time.time() - trial_init_time < trialTimeLimit) if LickTime[trialN] is not None else True) and \
-              (time.time() - exp_init_time < SessionTimeLimit) and \
-              (len(licks[this_spout][this_trial_num]) < LickCount[trialN] if LickCount[trialN] is not None else True):
-            current_poke = getBit(portType=lickSensor[0], channel=lickSensor[1])
-            
-            # First check if transitioned from not poke to poke.
-            if current_poke == 1 and last_poke == 0: # 0 indicates poking
-                new_lick = time.time() #save the time of the new lick onset. was beam_break
-                if (useLED == 'True'): setBit(portType=lickLED[0], channel=lickLED[1], value=1)
-                #setBit(portType=lickTTL[0], channel=lickTTL[1], value=1)
-                
-            # Next check if transitioned from poke to not poke.
-            if current_poke == 0 and last_poke == 1:
-                off_lick = time.time() #save the time the lick sensor stops. was beam_unbroken
-                if (useLED == 'True'): setBit(portType=lickLED[0], channel=lickLED[1], value=0)
-                #setBit(portType=lickTTL[0], channel=lickTTL[1], value=0)
-
-                if (off_lick - new_lick > 0.02) and (off_lick - new_lick < 0.12): # to avoid noise (from motor)- induced licks TODO: See if these limits can be tuned tighter. Also, add in an output of the number of filtered licks
-                    licks[this_spout][this_trial_num].append(round((new_lick-last_lick)*1000))
-                    if len(licks[this_spout][this_trial_num]) == 1:
-                        trial_init_time = new_lick #if lick happens, reset the trial_init time
-                        trialTimeLimit = LickTime[trialN] if LickTime[trialN] is not None else 6000 #If a lick happens, reset the trial time limit to maximal lick time
-                        if useCamera == 'True': camera.saveBufferAndCapture(duration=trialTimeLimit, title=f'{subjID}_trial{trialN}', outputFolder=dat_folder, start_time = trial_init_time)
-                    last_lick = new_lick
-                    print('Lick_{}'.format(len(licks[this_spout][-1])))
-                else:
-                    filteredLicks += 1
-                    print(f'Rejected lick: {filteredLicks}')
-    
-            # Update last state and wait a short period before repeating.
-            last_poke = current_poke
-            #time.sleep(0.001)
-            
-        #Start the clock for IPI
-        startIPI = time.time()
-    
-        # Close Shutter
-        moveShutter(Open=False)
-        
-        # Update LEDs and Intan outs
-        if useLED == 'Cue':
-            pass
-        
-        if useLED == 'True': setBit(portType=lickLED[0], channel=lickLED[1], value=0)
-        time.sleep(0.001)
-        setBit(portType=trialTTL[0], channel=trialTTL[1], value=0)
-        
-        # Turn off nosepoke detection
-        setBit(portType=lickTTL[0], channel=lickTTL[1], value=0)
-        
-        # Reset the Camera
-        if useCamera == 'True':
-            camera.cleanup()
-            camera.setupCapture(mode = camMode, autoExposure = False, exposure = exposure, gain = gain, buffer_duration = buffer_duration)
-            
-        #Write the outputs
-        #Save Trial Start time
-        with open(timeFile, 'a') as timeKeeper:
-            timeKeeper.write(f'{trialN+1}, {trial_start_time}\n')
-        trialLicks = licks[this_spout][this_trial_num]
-        NLicks = len(trialLicks)
-        if NLicks == 0:
-            latency = round(MaxWaitTime[trialN]*1000)
-        else:
-            latency = trialLicks[0]
-        timeTemp = [LickTime[trialN] if LickTime[trialN] is not None else 'None'][0]
-        trialLine = f"{trialN+1:>4},{spoutN:>4},{concs[taste_idx]:>{padConc}},{tastes[taste_idx]:>{padStim}},{IPITimes[trialN]:>7},{timeTemp:>7},{NLicks:>7},{latency:>{padLat}},{0:>7}\n"  # Left-aligned, padded with spaces
-        with open(outFile, 'r') as outputFile:
-            outputData = outputFile.readlines()
-            outputData.insert((skipLines+trialN),trialLine)
-        with open(outFile, 'w') as outputFile:
-            outputFile.writelines(outputData)
-            outLicks = f',{",".join(map(str, trialLicks[1:]))}' if len(trialLicks) > 0 else ''
-            outputFile.write(f'{trialN + 1}{outLicks}\n')
-
-        # print out number of licks being made on this trial
-        print('{} licks on Trial {}'.format(NLicks, trialN))
-        print('\n=====  Inter-Trial Interval =====\n')
-    
-    #Note a clean run
-    cleanRun = True
-    
-#%% Ending the session
-finally:
-    if not cleanRun:
-        print("Session interrupted")
-        
-    # turn off LEDs and Intan outs
-    setBit(portType=lickLED[0], channel=lickLED[1], value=0)
-    setBit(portType=trialTTL[0], channel=trialTTL[1], value=0)
-    setBit(portType=lickTTL[0], channel=lickTTL[1], value=0)
-    
-    # Return spout to home, close shutter
-    moveTable(Init=True)
-    moveShutter(Init=True)   
-    mcc.d_close_port()
-    
-    #Shut down camera
-    if useCamera == 'True': camera.cleanup()
-    
-    #print(licks)
-    for spout in spout_locs:
-        num_licks_trial = [len(i) for i in licks[spout]]
-        print(spout, num_licks_trial)
-        
-        tot_licks = np.concatenate(licks[spout])
-        print("Total number of licks on {}: {}".format(spout, len(tot_licks)))
-    
-    if 0: #old output files, disabled
-        with open(os.path.join(dat_folder, "{}_lickTime.pkl".format(subjID)), 'wb') as handle:
-            pickle.dump(licks, handle, protocol=pickle.HIGHEST_PROTOCOL)
-        
-        # save experimental info
-        param_dict = {}
-        param_dict['initial_wait'] = IPITimes[0]
-        param_dict['SessionTimeLimit'] = SessionTimeLimit
-        param_dict['MaxWaitTime'] = [f'{i}' for i in MaxWaitTime]
-        param_dict['LickTime'] = [f'{i}' for i in LickTime]
-        param_dict['IPITimes'] = [f'{i}' for i in IPITimes]
-        param_dict['taste_list'] = {k:t for k, t in zip([f'spout-{(i+1)*2}' for i in range(4)], t_list)}
-        param_dict['TubeSeq'] = [f'{i}' for i in TubeSeq]
-        param_dict['licks'] = licks
-        
-        with open(os.path.join(dat_folder, "{}_exp_info.json".format(subjID)), 'w') as f:
-            json.dump(param_dict, f)
-    
-    print('======= Remove rat from the box to its home cage =======')

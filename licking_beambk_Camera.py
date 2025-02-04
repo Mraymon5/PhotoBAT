@@ -1,6 +1,8 @@
 # This code records number of licks via IR beambreak detection
 # Execute the code with python licking_test.py [subjID] [experimental duration]
 
+#TODO Make a gui wrapper for all of this. Piloting in MCC
+
 #Import the necessary modules
 import os
 import time
@@ -8,14 +10,13 @@ import numpy as np
 import pickle
 import easygui
 import json
-import board
-import digitalio
 import argparse
 import random
 from datetime import datetime
+import sys
+import threading
 
 #Currently unused modules
-import sys
 import busio
 import atexit
 import subprocess
@@ -24,18 +25,29 @@ from subprocess import Popen, PIPE
 from pathlib import Path
 
 #%% Local pi functions
-from bipolar_class import Motor
-from bipolar_class import rotate_dir
-from rgbled_class import RGBLed
-from turn_motor import *
 import CameraControl
+import rig_funcs as rig
+try:
+    import RPi.GPIO as GPIO
+    from bipolar_class import Motor
+    from bipolar_class import rotate_dir
+    from rgbled_class import RGBLed
+except:
+    print('Could not import Pi-Specific Modules')
+
+#%% Helper Functions
+# Helper function to read in values from params file and save them as int or None
+def intOrNone(value, factor=1):
+    try:
+        return int(value)*factor # If the value in a given position is a numeral, convert to int
+    except (ValueError, TypeError): # Otherwise return None
+        return None
+
+# Helper function to allow flexible inputs for True in user-supplied strings
+isTrue = lambda x: str(str(x).lower() in {'1', 'true', 't'})
+
 
 #%% Setup Session Parameters
-
-#TODO: Add in a option to set max licks per trial instead of max time, DONE, untested
-#TODO: I think the max licks may break compatibility with the camera trigger in some circumstances, FIXED Untested
-#TODO: Make the Gui more friendly, DONE, untested
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description = 'Script for running a BAT session with photobeam lickometer')
     parser.add_argument('subjID', nargs='?', help = 'ID of animal being run', default=None)
@@ -45,17 +57,41 @@ if __name__ == "__main__":
     parser.add_argument('--Camera', '-c', help = 'Record with the behavior camera (True/[False])', default = 'False')
     args = parser.parse_args()
  
+rigParams = rig.read_params()
+
 date = time.strftime("%Y%m%d")
 subjID = args.subjID
 ParamsFile = args.ParamsFile
 useLED = args.LED
 useCamera = args.Camera
 #print(args.subjID)
+#print(args.subjID)
+proj_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
 
 if args.OutputFolder is not None:
-    proj_path = args.OutputFolder
+    out_path = args.OutputFolder
 else:
-    proj_path = os.getcwd() #'/home/rig337-testpi/Desktop/katz_lickometer'
+    out_path = os.path.join(proj_path, 'data')
+try:
+    os.mkdir(out_path)
+    print("No parent data folder, making one")
+except:
+    if os.path.isdir(out_path):
+        print("Parent data folder found")
+    else:
+        print("Could not find or create parent data folder, can't save data")
+
+dat_folder = os.path.join(out_path, '{}'.format(date))
+try:
+    os.mkdir(dat_folder)
+    print("No session data folder, making one")
+except:
+    if os.path.isdir(dat_folder):
+        print("Session data folder found")
+    else:
+        print("Could not find or create session data folder, can't save data")
+print(f'Data folder is, {dat_folder}')
+
     
 if os.path.isdir(os.path.join(proj_path, 'params')):
     paramsFolder = os.path.join(proj_path, 'params/*')
@@ -66,20 +102,11 @@ else:
 if args.ParamsFile is None:
     ParamsFile = easygui.fileopenbox(msg="Select a params file, or cancel for manual entry", default=paramsFolder)
 
-#print(proj_path)
-
-# Helper function to read in values from params file and save them as int or None
-def intOrNone(value, factor=1):
-    try:
-        return int(value)*factor # If the value in a givin position is a numeral, convert to int
-    except (ValueError, TypeError): # Otherwise return None
-        return None
-
-# Helper function to allow flexible inputs for True in user-supplied strings
-isTrue = lambda x: str(str(x).lower() in {'1', 'true', 't'})
-
 # Setup trial parameters
 #ParamsFile = '/home/ramartin/Documents/Forms/TrialParamsTemplate.txt'
+spoutAddress = np.arange(2, rigParams['tableTotalPositions']+2,2)
+NSpouts = len(spoutAddress)
+
 if ParamsFile is not None:
     with open(ParamsFile, 'r') as params:
         paramsData = params.readlines()
@@ -117,7 +144,11 @@ if ParamsFile is not None:
         useCamera = [line[1] for line in paramsData if 'UseCamera' in line[0]][0]
     except:
         useCamera = useCamera
-    
+    try:
+        useLaser = [line[1].split(',') for line in paramsData if 'UseLaser' in line[0]][0]
+    except:
+        useLaser = [False]
+
     tastes = [stimN for stimN in Solutions if len(stimN) > 0]
     taste_positions = [2*int(stimN+1) for stimN in range(len(Solutions)) if len(Solutions[stimN]) > 0]
     concs = [stimN for stimN in Concentrations if len(stimN) > 0]
@@ -142,6 +173,13 @@ if ParamsFile is not None:
     if len(LickCount) > NTrials:
         LickCount = LickCount[:NTrials]
         lickcountMsg = '-More trial durations given than NTrials; trimming excess\n'
+    #Set Laser List
+    if len(useLaser) < NTrials:
+        useLaser = (useLaser * -(-NTrials//len(useLaser)))[:NTrials]
+        useLaserMsg = '-Fewer laser trials given than NTrials; recycling positions\n'
+    if len(useLaser) > NTrials:
+        useLaser = useLaser[:NTrials]
+        useLaserMsg = '-More laser trials given than NTrials; trimming excess\n'
     #Set Trial List
     if len(TubeSeq) < NTrials:
         TubeSeq = (TubeSeq * -(-NTrials//len(TubeSeq)))[:NTrials]
@@ -183,9 +221,10 @@ else:
                                '6: Maximum lick time per trial (10s)',
                                '7: Maximum lick count per trial (None)',
                                '8: Use LED indicators?',
-                               '9: Use behavior camera?'
+                               '9: Use behavior camera?',
+                               '10: Use laser? (False,Lick,Trial)',
                               ],
-                              [subjID,30,60,10,30,90,10,None,useLED,useCamera])
+                              [subjID,30,60,10,30,90,10,None,useLED,useCamera,False])
     if params is None:
         raise Exception("Session parameters must be supplied manually if no params file is given")
 
@@ -200,22 +239,26 @@ else:
     max_lick_count = int(params[7]) if params[7] != '' else None #100
     useLED = params[8] #0
     useCamera = params[9] #0
+    useLaser = params[10] #False
     
     # Get tastes and their spout locations
-    bot_pos = ['Water', '', '', '']
-    t_list = easygui.multenterbox('Please enter the taste to be used in each spout.',
+    bot_pos = ['Water'] + ['']*(NSpouts-1)
+    Solutions = easygui.multenterbox('Please enter the taste to be used in each spout.',
                                   'Taste List',
-                                  ['Spout {}'.format(i) for i in ['2, Yellow','4, Blue','6, Green','8, Red']],
+                                  ['Spout {}'.format(i) for i in np.arange(2, (NSpouts*2)+2,2)],
                                   values=bot_pos)
     
     # Setting up spouts for each trial
-    tastes = [i for i in t_list if len(i) > 0]
-    taste_positions = [2*int(i+1) for i in range(len(t_list)) if len(t_list[i]) > 0]
+    tastes = [i for i in Solutions if len(i) > 0]
+    taste_positions = [2*int(i+1) for i in range(len(Solutions)) if len(Solutions[i]) > 0]
     
     concs = easygui.multenterbox('Please enter the concentration of each taste.',
                                   'Concentration List',
                                   tastes,
                                   values=[None]*len(tastes))
+    concN = iter(concs)
+    Concentrations = [next(concN) if x != '' else '' for x in Solutions]
+
     
     trial_list = [np.random.choice(taste_positions, size = len(tastes), replace=False) for i in range(trials_per_taste)]
     trial_list = np.concatenate(trial_list)
@@ -224,6 +267,7 @@ else:
     NTrials = len(tastes)*trials_per_taste
     LickTime = [max_lick_time]*NTrials
     LickCount = [max_lick_count]*NTrials
+    useLaser = [useLaser]*NTrials
     TubeSeq = trial_list
     IPITimes = list(np.append(initial_wait,([iti]*(NTrials-1)))) #Make a list of IPIs with initial_wait as the first
     MaxWaitTime = [max_trial_time]*NTrials
@@ -236,27 +280,6 @@ useCamera = isTrue(useCamera)
 # Make empty list to save lick data
 spout_locs = ['Position {}'.format(i) for i in taste_positions]
 licks = {spout:[] for spout in spout_locs}
-
-
-try:
-    os.mkdir(os.path.join(proj_path, 'data'))
-    print("No parent data folder, making one")
-except:
-    if os.path.isdir(os.path.join(proj_path, 'data')):
-        print("Parent data folder found")
-    else:
-        print("Could not find or create parent data folder, can't save data")
-
-dat_folder = os.path.join(proj_path, 'data', '{}'.format(date))
-try:
-    os.mkdir(dat_folder)
-    print("No session data folder, making one")
-except:
-    if os.path.isdir(os.path.join(proj_path, 'data')):
-        print("Session data folder found")
-    else:
-        print("Could not find or create session data folder, can't save data")
-print(f'Data folder is, {dat_folder}')
 
 #%% Setup the output files
 fileTail = ''
@@ -275,12 +298,13 @@ outCondition = 'Condition, \n'
 outWait = f'Max Wait for first Lick is, {MaxWaitTime[0]}\n'
 outRetries = 'Max Retries / Presentation, 0\n'
 outNumPres = f'Max Number Presentations, {NTrials}\n'
-outHeadings = 'PRESENTATION,TUBE,CONCENTRATION,SOLUTION,IPI,LENGTH,LICKS,Latency,Retries\n\n'
+outHeadings = 'PRESENTATION,TUBE,CONCENTRATION,SOLUTION,IPI,LENGTH,LICKS,Latency,Retries,Laser\n\n'
 outLickTime = f'Lick time limits are, {LickTime}\n'
 outLickCount = f'Lick count limits are, {LickCount}\n'
 outIPI = f'IPIs are, {IPITimes}\n'
 outLED = f'Use LEDs, {useLED}\n'
 outCamera = f'Use Camera, {useCamera}\n'
+outLaser = f'Laser Uses are, {useLaser}\n'
 zeroTime = time.time()
 
 with open(outFile, 'w') as outputFile:
@@ -307,7 +331,7 @@ if 0: # This is strictly for testing outputs and should be disabled or removed f
         latency = random.randrange(0,round(max(MaxWaitTime)*1000))
         licks = [random.randrange(100,150) for lickN in range(NLicks-1)]
         timeTemp = [LickTime[trialN] if LickTime[trialN] is not None else 'None'][0]
-        trialLine = f"{trialN+1:>4},{spoutN:>4},{concs[taste_idx]:>{padConc}},{tastes[taste_idx]:>{padStim}},{IPITimes[trialN]:>7},{timeTemp:>7},{NLicks:>7},{latency:>{padLat}},{0:>7}\n"  # Left-aligned, padded with spaces
+        trialLine = f"{trialN+1:>4},{spoutN:>4},{Concentrations[taste_idx]:>{padConc}},{Solutions[taste_idx]:>{padStim}},{IPITimes[trialN]:>7},{timeTemp:>7},{NLicks:>7},{latency:>{padLat}},{0:>7},{useLaser[trialN]:>7}\n"  # Left-aligned, padded with spaces
         with open(outFile, 'r') as outputFile:
             outputData = outputFile.readlines()
             outputData.insert((skipLines+trialN),trialLine)
@@ -317,63 +341,38 @@ if 0: # This is strictly for testing outputs and should be disabled or removed f
             outputFile.write(f'{trialN + 1}{outLicks}\n')
 
 #Report Parameters
-print(outID + 'Output file is, ' + outFile + '\n' + outWait + outNumPres + outLickTime + outLickCount + outIPI + outLED + outCamera)
+print(outID + 'Output file is, ' + outFile + '\n' + outWait + outNumPres + outLickTime + outLickCount + outIPI + outLED + outCamera + outLaser)
 print([f'Spout {taste_positions[i]}: {tastes[i]}' for i in range(len(tastes))])
 print('Taste Sequence: {}'.format(TubeSeq))
 
 #%% Setup Hardware
 
+#TODO incorporate importing of hardware parameters
+#TODO incorporate laser output; should handle 2 conditions; laser on at shutter open, or laser on at lick onset
 # setup motor [40 pin header for newer Raspberry Pi's]
-step = 24       # Pin assigned to motor controller steps
-direction = 23  # Pin assigned to motor controller direction
-enable = 25     # Not required - leave unconnected
-ms1 = 18
-ms2 = 15
-ms3 = 14
-he_pin = 16     # Hall effect pin
+stepPin =  rigParams['stepPin']       # Pin assigned to motor controller steps
+directionPin =  rigParams['tableStepMode']  # Pin assigned to motor controller direction
+enablePin =  rigParams['tableStepMode']     # Not required - leave unconnected
+ms1Pin,ms2Pin,ms3Pin =  rigParams['msPins']
+hallPin = rigParams['hallPin']     # Hall effect pin, was he_pin
+np_led = rigParams['lickLEDPin'] # LED lick indicator pin, was np_led
+nosepokeIR = rigParams['lickBeamPin'] #lick beam input pin, was nosepokeIR
+laserPin = rigParams['laserPin'] # laser output pin, was laserOut
+beamIntanIn = rigParams['intanBeamPin'] # intan lick indicator output, was beamIntanIn
+cueIntanIn = rigParams['intanTrialPin'] # intan trial indicator output, was cueIntanIn
+spoutsIntanIn = rigParams['intanSpoutPins'][0:NSpouts]
+tot_pos = rigParams['tableTotalPositions']     # Total Positions on table, including walls
 cur_pos = 1     # Initial position of table should be 1
 dest_pos = TubeSeq[0]
+Mode = rigParams['tableStepMode']
 
 # set up RGB LEDs
-red_pin, green_pin, blue_pin = board.D13, board.D19, board.D26
-led = RGBLed(red_pin, green_pin, blue_pin)
+bluePin, greenPin, redPin = rigParams['cueLEDPins']
+led = RGBLed(redPin, greenPin, bluePin)
 
-# setup NosePoke LED cue
-np_led = digitalio.DigitalInOut(board.D21)
-np_led.direction = digitalio.Direction.OUTPUT
-
-# setup intaninput for beam sensor
-beamIntanIn = digitalio.DigitalInOut(board.D5)
-beamIntanIn.direction = digitalio.Direction.OUTPUT
-
-# setup intaninput for trial signal
-cueIntanIn = digitalio.DigitalInOut(board.D27)
-cueIntanIn.direction = digitalio.Direction.OUTPUT
-
-# setup intaninput for spout presentation 
-# Spout 2 
-sp2IntanIn = digitalio.DigitalInOut(board.D2)
-sp2IntanIn.direction = digitalio.Direction.OUTPUT
-
-# Spout 4
-sp4IntanIn = digitalio.DigitalInOut(board.D3)
-sp4IntanIn.direction = digitalio.Direction.OUTPUT
-
-# Spout 6
-sp6IntanIn = digitalio.DigitalInOut(board.D4)
-sp6IntanIn.direction = digitalio.Direction.OUTPUT
-
-# Spout 8
-sp8IntanIn = digitalio.DigitalInOut(board.D10)
-sp8IntanIn.direction = digitalio.Direction.OUTPUT
-
-spoutsIntanIn = {2:sp2IntanIn, 4:sp4IntanIn, 6:sp6IntanIn, 8:sp8IntanIn}
-
-# setup nose poke beam break detection
-nosepokeIR = digitalio.DigitalInOut(board.D6)
-nosepokeIR.direction = digitalio.Direction.INPUT
-nosepokeIR.pull = digitalio.Pull.UP
-
+#Configure all GPIO pins listed in rigParams
+rig.configureIOPins()
+if hallPin > 0: rig.align_zero(he_inport=rigParams['hallPin'], adjust_steps=rigParams['tableInitSteps'])
 # Setup Camera: test settings with CamerControl.preview
 if useCamera == 'True':
     #CameraControl.preview(mode=2)
@@ -415,14 +414,17 @@ try:
             # turn_off house white led light
             led.white_off()
             led.green_on() #Turn on the cue light
-            #np_led.value = True # turn on nose poke LED
             #Code for differential cue lights
             #if spoutN == taste_positions[0]:
             #    led.red_on()
             #else:
             #   led.green_on()
-        cueIntanIn.value = True
-        spoutsIntanIn[spoutN].value = True
+        if useLaser[trialN] == 'Trial':
+            laserTimeLimit = [LickTime[trialN] if LickTime[trialN] is not None else 5]
+            laserThread = threading.Thread(target=rig.fireLaser, kwargs={'laserPin':laserPin, 'duration':laserTimeLimit})
+            laserThread.start()
+        GPIO.output(cueIntanIn,GPIO.HIGH) #Set cue Intan in High
+        GPIO.output(spoutsIntanIn[taste_idx],GPIO.HIGH) #Set the correct spout Intan in High
         
         # on-screen reminder
         print("\n")
@@ -435,30 +437,30 @@ try:
         this_trial_num = len(licks[this_spout]) - 1 
         
         # using rotate_dir function to get the move of the motor
-        turn_dir, n_shift = rotate_dir(cur_pos, dest_pos, tot_pos = 8)
+        turn_dir, n_shift = rotate_dir(cur_pos, dest_pos, tot_pos = tot_pos)
     
         # create Motor instance
-        motora = Motor(step, direction, enable, ms1, ms2, ms3)
+        motora = Motor(stepPin, directionPin, enablePin, ms1Pin, ms2Pin, ms3Pin)
         motora.init()
-        revolution = motora.setStepSize(Motor.EIGHTH) #SIXTEENTH)
+        revolution = motora.setStepSize(Mode)
         
         # start nose poke detection
         NP_process = Popen(['python', 'nose_poking.py', subjID, f'{trialN}'], shell=False)
     
         # rotate motor to move spout outside licking hole
         if turn_dir == -1: # turn clockwise
-            motora.turn(n_shift * (revolution/8), Motor.CLOCKWISE)
+            motora.turn(n_shift * (revolution/tot_pos), Motor.CLOCKWISE)
         else:
-            motora.turn(n_shift * (revolution/8), Motor.ANTICLOCKWISE)
+            motora.turn(n_shift * (revolution/tot_pos), Motor.ANTICLOCKWISE)
             
         #Update motor position
         cur_pos = dest_pos
     
         # detecting the current status of touch sensor
-        last_poke = nosepokeIR.value # return status (touched or not) for each pin as a tuple
+        last_poke = GPIO.input(nosepokeIR) # return status (touched or not) for each pin as a tuple
         print("Beam is clear") if last_poke else print ("Beam is blocked")
         while not last_poke: # stay here if beam broken
-            last_poke = nosepokeIR.value # make sure nose-poke is not blocked when starting
+            last_poke = GPIO.input(nosepokeIR) # make sure nose-poke is not blocked when starting
             
         #Save Trial Start Time
         trial_start_time = time.time()
@@ -472,17 +474,17 @@ try:
         while ((time.time() - trial_init_time < trialTimeLimit) if LickTime[trialN] is not None else True) and \
               (time.time() - exp_init_time < SessionTimeLimit) and \
               (len(licks[this_spout][this_trial_num]) < LickCount[trialN] if LickCount[trialN] is not None else True):
-            current_poke = nosepokeIR.value
+            current_poke = GPIO.input(nosepokeIR)
             
             # First check if transitioned from not poke to poke.
             if current_poke == 0 and last_poke == 1: # 0 indicates poking
                 beam_break = time.time() #save the time of the beam break
-                np_led.value = True
+                GPIO.output(np_led,GPIO.HIGH) #Turn on the beam indicator LED
 
             # Next check if transitioned from poke to not poke.
             if current_poke == 1 and last_poke == 0:
                 beam_unbroken = time.time()
-                np_led.value = False
+                GPIO.output(np_led,GPIO.LOW) #Turn off the beam indicator LED
 
                 if beam_unbroken - beam_break > 0.02: # to avoid noise (from motor)- induced licks
                     licks[this_spout][this_trial_num].append(round((beam_break-last_break)*1000))
@@ -490,11 +492,15 @@ try:
                         trial_init_time = beam_break #if lick happens, reset the trial_init time
                         trialTimeLimit = LickTime[trialN] if LickTime[trialN] is not None else 6000 #If a lick happens, reset the trial time limit to maximal lick time
                         if useCamera == 'True': camera.saveBufferAndCapture(duration=trialTimeLimit, title=f'{subjID}_trial{trialN}', outputFolder=dat_folder, start_time = trial_init_time)
+                        if useLaser[trialN] == 'Lick':
+                            laserTimeLimit = [LickTime[trialN] if LickTime[trialN] is not None else 5]
+                            laserThread = threading.Thread(target=rig.fireLaser, kwargs={'laserPin':laserPin, 'duration':laserTimeLimit})
+                            laserThread.start()
                     last_break = beam_break
                     print('Beam Broken! -- Lick_{}'.format(len(licks[this_spout][-1])))
     
             # Update last state and wait a short period before repeating.
-            last_poke = nosepokeIR.value
+            last_poke = GPIO.input(nosepokeIR)
             time.sleep(0.001)
             
         # make sure the touch sensor is off after the trial
@@ -506,18 +512,18 @@ try:
         # find rest_direction
         cur_pos = TubeSeq[trialN]
         if trialN < len(TubeSeq) - 1:
-            rest_dir, _ = rotate_dir(cur_pos, TubeSeq[trialN+1], tot_pos = 8)
+            rest_dir, _ = rotate_dir(cur_pos, TubeSeq[trialN+1], tot_pos = tot_pos)
         else:
             rest_dir = -1
         dest_pos = cur_pos + rest_dir
-        dest_pos = dest_pos if dest_pos<=8 else dest_pos-8
+        dest_pos = dest_pos if dest_pos<=tot_pos else dest_pos-tot_pos
         
         # rotate to rest position
-        turn_dir, n_shift = rotate_dir(cur_pos, dest_pos, tot_pos = 8)
+        turn_dir, n_shift = rotate_dir(cur_pos, dest_pos, tot_pos = tot_pos)
         if turn_dir == -1: # turn clockwise
-            motora.turn(n_shift * (revolution/8), Motor.CLOCKWISE)
+            motora.turn(n_shift * (revolution/tot_pos), Motor.CLOCKWISE)
         else:
-            motora.turn(n_shift * (revolution/8), Motor.ANTICLOCKWISE)
+            motora.turn(n_shift * (revolution/tot_pos), Motor.ANTICLOCKWISE)
     
         # setup cur_post and dest_pos for next trial, or just update cur_pos if the session is over
         if trialN < len(TubeSeq) - 1:
@@ -537,14 +543,15 @@ try:
             #    led.green_off()
             led.green_off() #Turn off the cue light
             led.white_on() # turn on house white led light
-        if useLED == 'True': np_led.value = False # turn off nose poke LED
+            GPIO.output(cueIntanIn,GPIO.LOW) #Turn off the cue Intan
+        if useLED == 'True': GPIO.output(np_led,GPIO.LOW) # turn off nose poke LED
         time.sleep(0.001)
-        cueIntanIn.value = False
-        spoutsIntanIn[spoutN].value = False
+        GPIO.output(cueIntanIn,GPIO.LOW) #Turn off the cue Intan
+        GPIO.output(spoutsIntanIn[taste_idx],GPIO.LOW) #Turn off the correct spout Intan
         
         # Turn off nosepoke detection
         NP_process.terminate()
-        beamIntanIn.value = False
+        GPIO.output(beamIntanIn,GPIO.LOW) #Turn off the beam Intan
         
         # Reset the Camera
         if useCamera == 'True':
@@ -562,7 +569,7 @@ try:
         else:
             latency = trialLicks[0]
         timeTemp = [LickTime[trialN] if LickTime[trialN] is not None else 'None'][0]
-        trialLine = f"{trialN+1:>4},{spoutN:>4},{concs[taste_idx]:>{padConc}},{tastes[taste_idx]:>{padStim}},{IPITimes[trialN]:>7},{timeTemp:>7},{NLicks:>7},{latency:>{padLat}},{0:>7}\n"  # Left-aligned, padded with spaces
+        trialLine = f"{trialN+1:>4},{spoutN:>4},{Concentrations[taste_idx]:>{padConc}},{Solutions[taste_idx]:>{padStim}},{IPITimes[trialN]:>7},{timeTemp:>7},{NLicks:>7},{latency:>{padLat}},{0:>7},{useLaser[trialN]:>7}\n"  # Left-aligned, padded with spaces
         with open(outFile, 'r') as outputFile:
             outputData = outputFile.readlines()
             outputData.insert((skipLines+trialN),trialLine)
@@ -587,22 +594,22 @@ finally:
     led.white_off()
     led.red_off()
     led.green_off()
-    np_led.value = False
-    cueIntanIn.value = False
-    spoutsIntanIn[spoutN].value = False
-    beamIntanIn.value = False
+    GPIO.output(np_led,GPIO.LOW) #Turn off the beam break indicator
+    GPIO.output(cueIntanIn,GPIO.LOW) #Turn off the cue Intan
+    GPIO.output(spoutsIntanIn,GPIO.LOW) #Turn off the spout Intan(s)
+    GPIO.output(beamIntanIn,GPIO.LOW) #Turn off the beam Intan
     
     # Return spout to home. This won't work if session is aborted while moving motor
     # create Motor instance
-    motora = Motor(step, direction, enable, ms1, ms2, ms3)
+    motora = Motor(stepPin, directionPin, enablePin, ms1Pin, ms2Pin, ms3Pin)
     motora.init()
-    revolution = motora.setStepSize(Motor.EIGHTH) #SIXTEENTH)
+    revolution = motora.setStepSize(Mode)
     # Turn the motor
-    turn_dir, n_shift = rotate_dir(cur_pos, 1, tot_pos = 8)
+    turn_dir, n_shift = rotate_dir(cur_pos, 1, tot_pos = tot_pos)
     if turn_dir == -1: # turn clockwise
-        motora.turn(n_shift * (revolution/8), Motor.CLOCKWISE)
+        motora.turn(n_shift * (revolution/tot_pos), Motor.CLOCKWISE)
     else:
-        motora.turn(n_shift * (revolution/8), Motor.ANTICLOCKWISE)
+        motora.turn(n_shift * (revolution/tot_pos), Motor.ANTICLOCKWISE)
     # Shut down motor
     motora.reset()
 
@@ -628,7 +635,7 @@ finally:
         param_dict['MaxWaitTime'] = [f'{i}' for i in MaxWaitTime]
         param_dict['LickTime'] = [f'{i}' for i in LickTime]
         param_dict['IPITimes'] = [f'{i}' for i in IPITimes]
-        param_dict['taste_list'] = {k:t for k, t in zip([f'spout-{(i+1)*2}' for i in range(4)], t_list)}
+        param_dict['taste_list'] = {k:t for k, t in zip([f'spout-{(i+1)*2}' for i in range(4)], Solutions)}
         param_dict['TubeSeq'] = [f'{i}' for i in TubeSeq]
         param_dict['licks'] = licks
         

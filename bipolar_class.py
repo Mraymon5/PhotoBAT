@@ -4,12 +4,14 @@
 # Raspberry Pi bipolar Stepper Motor Driver Class
 # Hardware Nema17 12 Volt Stepper High Torque Motor
 # Gear Reduction Ratio: 1/64 
-# Uses the A4988 H-bridge circuit driver board: https://www.mouser.com/pdfDocs/A4988-Datasheet.pdf
+# Uses the A4988 H-bridge circuit driver board:
+# https://www.mouser.com/pdfDocs/A4988-Datasheet.pdf
 #
 # Author : Bob Rathbone
 # Site   : http://www.bobrathbone.com
-#
+# Modified by Martin Raymond
 
+#%% Module Imports
 import sys
 import os
 import time
@@ -17,6 +19,7 @@ import numpy as np
 
 import RPi.GPIO as GPIO
 
+#%%
 # The stepper motor can be driven in five different modes 
 # See http://en.wikipedia.org/wiki/Stepper_motor
 
@@ -30,8 +33,23 @@ SixteenthStep = [1,1,1,16]
 # Other definitions
 ENABLE = GPIO.LOW
 DISABLE = GPIO.HIGH
-STEPS = 200 # 200 step motor (Full)
 
+#%% Import some Parameters
+def updateParameters():
+    global tableTotalSteps, tableSpeed
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    params_path = os.path.join(script_dir, 'BAT_params.txt')
+
+    with open(params_path, 'r') as params:
+        paramsData = params.readlines()
+    paramsData = [line.rstrip('\n') for line in paramsData]
+    paramsData = [line.split('#')[0] for line in paramsData]
+    paramsData = [line.split('=') for line in paramsData]
+    tableTotalSteps = int([line[1] for line in paramsData if 'tableTotalSteps' in line[0]][0])
+    tableSpeed = [line[1].split(',') for line in paramsData if 'tableSpeed' in line[0]][0]
+    tableSpeed = [float(trialN) for trialN in tableSpeed]
+    return [tableTotalSteps, tableSpeed]
+#%%
 class Motor:
     # Direction
     CLOCKWISE = 0
@@ -46,8 +64,8 @@ class Motor:
 
     pulse = 0.001 #0.0007
     interval = 0.001 #0.0007
-    oneRevolution = STEPS
-
+    curPosition = 1
+    
     def __init__(self, step, direction, enable, ms1, ms2, ms3):
         self.step = step
         self.direction = direction
@@ -55,6 +73,7 @@ class Motor:
         self.ms1 = ms1
         self.ms2 = ms2
         self.ms3 = ms3
+        self.stepTotal, self.tableSpeed = updateParameters()
         return
 
     # Initialise GPIO pins for this bipolar motor
@@ -86,11 +105,11 @@ class Motor:
         GPIO.output(self.ms1,stepres[0])
         GPIO.output(self.ms2,stepres[1])
         GPIO.output(self.ms3,stepres[2])
-        self.oneRevolution = STEPS * stepres[3]
+        self.oneRevolution = self.stepTotal * stepres[3]
         return self.oneRevolution
 
     # Turn the motor
-    def turn(self,steps,direction):
+    def turn(self,steps,direction,lock=False):
         count = steps
         GPIO.output(self.enable,ENABLE)
         GPIO.output(self.direction,direction)
@@ -100,6 +119,8 @@ class Motor:
             GPIO.output(self.step,GPIO.LOW)
             time.sleep(self.interval)
             count -= 1
+        if lock: #MAR if enable/disable is used, this is neccessary to prevent sliding/overshooting
+            time.sleep(0.05)
         GPIO.output(self.enable,DISABLE)
         return
 
@@ -150,6 +171,7 @@ class Motor:
 
     # Homing the motor
     def home(self, he_pin = None, adjust_steps=None):
+        print("Did you mean to use this? Try rig_funcs.align_zero instead")
         # setup hall effect input
         inport = he_pin
         GPIO.setup(inport, GPIO.IN)
@@ -184,6 +206,7 @@ class Motor:
         #self.turn(adjust_steps,self.CLOCKWISE)
         
         GPIO.output(self.enable,DISABLE)
+        self.curPosition = 1
         return
     
     # Stop the motor (calls reset)
@@ -198,16 +221,21 @@ class Motor:
     # Set Step size
     def setStepSize(self,size):
 
-        if size == self.HALF:
+        if size == self.HALF or size == 'HALF':
             steps = self.setStepResolution(HalfStep)    
-        elif size == self.QUARTER:
+            self.interval = self.tableSpeed[1]
+        elif size == self.QUARTER or size == 'QUARTER':
             steps = self.setStepResolution(QuarterStep) 
-        elif size == self.EIGHTH:
-            steps = self.setStepResolution(EighthStep)  
-        elif size == self.SIXTEENTH:
+            self.interval = self.tableSpeed[2]
+        elif size == self.EIGHTH or size == 'EIGHTH':
+            steps = self.setStepResolution(EighthStep)
+            self.interval = self.tableSpeed[3]
+        elif size == self.SIXTEENTH or size == 'SIXTEENTH':
             steps = self.setStepResolution(SixteenthStep)   
+            self.interval = self.tableSpeed[4]
         else:
             steps = self.setStepResolution(FullStep)    
+            self.interval = self.tableSpeed[0]
 
         self.oneRevolution = steps
         return self.oneRevolution
