@@ -56,7 +56,7 @@ pip install numpy
 pip install board
 pip install easygui
 pip install RPI.GPIO
-pip install adafruit-blinka
+pip3 install adafruit-circuitpython-mpr121
 pip install opencv-python
 pip install tkintertable
 pip install pandas
