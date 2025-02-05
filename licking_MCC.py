@@ -13,8 +13,7 @@ import argparse
 import random
 from datetime import datetime
 import threading
-import tkinter as tk
-import tkintertable
+import queue
 
 #Currently unused modules
 if False:
