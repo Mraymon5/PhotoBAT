@@ -503,7 +503,7 @@ try:
         #Start the camera
         if useCamera == 'True': camera.startBuffer()
 
-        while (time.time() - trial_init_time < trialTimeLimit) and \
+        while (time.time() - trial_init_time < trialTimeLimit) if trialTimeLimit is not None else True and \
               (time.time() - exp_init_time < SessionTimeLimit) and \
               (len(licks[this_spout][this_trial_num]) < LickCount[trialN] if LickCount[trialN] is not None else True):
             
@@ -529,8 +529,11 @@ try:
                     rig.lickQueue.put(len(licks[this_spout][this_trial_num])) #Send new lick to GUI
                     if len(licks[this_spout][this_trial_num]) == 1: #If this is the first lick:
                         trial_init_time = beam_break #if lick happens, reset the trial_init time
-                        trialTimeLimit = LickTime[trialN] if LickTime[trialN] is not None else trialTimeLimit #If a lick happens, reset the trial time limit to maximal lick time
-                        rig.timerQueue.put(trial_init_time+trialTimeLimit) #push the timeout time to GUI
+                        trialTimeLimit = LickTime[trialN] if LickTime[trialN] is not None else None #If a lick happens, reset the trial time limit to maximal lick time
+                        if trialTimeLimit is not None:
+                            rig.timerQueue.put(trial_init_time+trialTimeLimit) #push the timeout time to GUI
+                        else:
+                            rig.timerQueue.put(trial_init_time) #push the timeout time to GUI
                         camTimeLimit = LickTime[trialN] if LickTime[trialN] is not None else 20 #If a lick happens, reset the trial time limit to maximal lick time
                         if useCamera == 'True': camera.saveBufferAndCapture(duration=min(20,camTimeLimit), title=f'{subjID}_trial{trialN}', outputFolder=dat_folder, start_time = trial_init_time) #Camera recording period capped to 20sec
                         if useLaser[trialN] == 'Lick':
