@@ -360,7 +360,7 @@ def TrialGui(paramsFile, outputFile, subjID):
     infoPad = 5
     lickLabel = tk.Label(infoFrame, text= "Lick Count:")
     lickLabel.grid(row=infoRow, column=0, padx=infoPad, pady=10, sticky='ne', rowspan=1)
-    lickDispEnt = tk.IntVar(0)
+    lickDispEnt = tk.IntVar(); lickDispEnt.set(0)
     lickDispBox = tk.Label(infoFrame, textvariable=lickDispEnt, background='white', borderwidth=1, relief="solid", width=7, anchor='e')
     lickDispBox.grid(row=infoRow, column=1, padx=infoPad, pady=10, sticky='nw', rowspan=1)
     infoRow +=1
