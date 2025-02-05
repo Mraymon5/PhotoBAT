@@ -497,8 +497,8 @@ try:
 
         #Update Lick Count and trial event in GUI
         rig.lickQueue.put(len(licks[this_spout][this_trial_num])) #push lick count to gui
-        rig.TrialEvent.set() #Let gui know a trial has started
         rig.timerQueue.put(trial_start_time+trialTimeLimit) #push the timeout time to GUI
+        rig.TrialEvent.set() #Let gui know a trial has started
 
         #Start the camera
         if useCamera == 'True': camera.startBuffer()
@@ -552,8 +552,6 @@ try:
     
         #Start the clock for IPI
         startIPI = time.time()
-        rig.timerQueue.put(startIPI+IPITimes[trialN+1]) #push the timeout time to GUI
-        rig.TrialEvent.clear() #Let gui know a trial has ended
         
         # find rest_direction
         cur_pos = TubeSeq[trialN]
@@ -623,6 +621,12 @@ try:
             outputFile.writelines(outputData)
             outLicks = f',{",".join(map(str, trialLicks[1:]))}' if len(trialLicks) > 0 else ''
             outputFile.write(f'{trialN + 1}{outLicks}\n')
+            
+        # Push trial information to the GUI
+        rig.timerQueue.put(startIPI+IPITimes[trialN+1]) #push the timeout time to GUI
+        rig.trialQueue.put([trialN,NLicks,latency])
+        rig.TrialEvent.clear() #Let gui know a trial has ended
+
 
         # print out number of licks being made on this trial
         print('{} licks on Trial {}'.format(NLicks, trialN))
