@@ -255,9 +255,9 @@ def TrialGui(paramsFile, outputFile, subjID):
     def on_close():
         abortSession = easygui.ccbox(msg="Terminate Session?",title="Terminate Check")
         if abortSession:
+            AbortEvent.set()
             sessionGUI.destroy()  # Destroy the Toplevel window
             if not isChild: root.destroy()    # Destroy the hidden root window
-            raise KeyboardInterrupt
         else:
             pass
 
@@ -317,7 +317,7 @@ def TrialGui(paramsFile, outputFile, subjID):
         timerDispEnt.set(f'{round(timerIs - time.time(),2):.3f}') #Write timer data to GUI
         
         if TrialEvent.is_set() and not TrialEventWasSet:
-            eventDispEnt.set("Waiting")
+            eventDispEnt.set("Waiting for Lick")
         if TrialEventWasSet and not TrialEvent.is_set():
             eventDispEnt.set("ITI")
             updateTrial() 
@@ -368,8 +368,8 @@ def TrialGui(paramsFile, outputFile, subjID):
     infoRow +=1
     eventLabel = tk.Label(infoFrame, text= "Current Event:")
     eventLabel.grid(row=infoRow, column=0, padx=infoPad, pady=10, sticky='ne', rowspan=1)
-    eventDispEnt = tk.StringVar(); eventDispEnt.set("0")
-    eventDispBox = tk.Label(infoFrame, textvariable=eventDispEnt, background='white', borderwidth=1, relief="solid", width=7, anchor='e')
+    eventDispEnt = tk.StringVar(); eventDispEnt.set("Waiting to Start")
+    eventDispBox = tk.Label(infoFrame, textvariable=eventDispEnt, width=12, anchor='w') # background='white', borderwidth=1, relief="solid",
     eventDispBox.grid(row=infoRow, column=1, padx=infoPad, pady=10, sticky='nw', rowspan=1)
     infoRow +=1
     timerLabel = tk.Label(infoFrame, text= "Timer:")
