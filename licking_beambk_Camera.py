@@ -350,8 +350,8 @@ print('Taste Sequence: {}'.format(TubeSeq))
 
 # setup motor [40 pin header for newer Raspberry Pi's]
 stepPin =  rigParams['stepPin']       # Pin assigned to motor controller steps
-directionPin =  rigParams['tableStepMode']  # Pin assigned to motor controller direction
-enablePin =  rigParams['tableStepMode']     # Not required - leave unconnected
+directionPin =  rigParams['directionPin']  # Pin assigned to motor controller direction
+enablePin =  rigParams['enablePin']     # Not required - leave unconnected
 ms1Pin,ms2Pin,ms3Pin =  rigParams['msPins']
 hallPin = rigParams['hallPin']     # Hall effect pin, was he_pin
 np_led = rigParams['lickLEDPin'] # LED lick indicator pin, was np_led
