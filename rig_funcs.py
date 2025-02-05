@@ -4,6 +4,14 @@ import time
 import easygui
 import atexit
 import warnings
+import tkintertable
+import tkinter as tk
+import threading
+import queue
+import pandas as pd
+
+from MakeParams import readParameters
+
 try:
     import RPi.GPIO as GPIO
     from bipolar_class import Motor
@@ -51,9 +59,13 @@ def read_params():
     intanSpoutPins = [line[1].split(',') for line in paramsData if 'intanSpoutPins' in line[0]][0]
     intanSpoutPins = [int(trialN) for trialN in intanSpoutPins]
     
+    # Lick Detection Mode
+    lickMode = str([line[1] for line in paramsData if 'lickMode' in line[0]][0]).strip()
+    
     rigParams = {'tableTotalSteps':tableTotalSteps, 'tableTotalPositions':tableTotalPositions, 'tableStepMode':tableStepMode, 'tableInitSteps':tableInitSteps, 'tableSpeed':tableSpeed,
                  'stepPin':stepPin, 'directionPin':directionPin, 'enablePin':enablePin, 'msPins':msPins, 'hallPin':hallPin, 'lickBeamPin':lickBeamPin,
-                 'laserPin':laserPin, 'lickLEDPin':lickLEDPin, 'cueLEDPins':cueLEDPins, 'intanBeamPin':intanBeamPin, 'intanTrialPin':intanTrialPin, 'intanSpoutPins':intanSpoutPins}
+                 'laserPin':laserPin, 'lickLEDPin':lickLEDPin, 'cueLEDPins':cueLEDPins, 'intanBeamPin':intanBeamPin, 'intanTrialPin':intanTrialPin, 'intanSpoutPins':intanSpoutPins,
+                 'lickMode':lickMode}
     
     return rigParams
 #%%Motor control functions
@@ -145,7 +157,7 @@ def fine_align(step=stepPin, direction=directionPin,enable=enablePin,ms1=ms1Pin,
     motora = Motor(step, direction, enable, ms1, ms2, ms3)
     motora.init()
     # rotate motor to move spout outside licking hole
-    steps360 = motora.setStepSize(stepMode) #TODO 01-30-25
+    steps360 = motora.setStepSize(stepMode)
     stepsPerPos = steps360/posTotal
     motora.turn(steps=stepsPerPos, direction=motora.ANTICLOCKWISE)
     
@@ -217,5 +229,153 @@ def fireLaser(laserPin,duration):
     while (time.time()-laserOnTime < duration):
         time.sleep(1e-3)
     GPIO.output(laserPin,GPIO.LOW)
-    
 
+#%% Functions for running the Session Gui    
+#Make tables that don't allow editing
+AbortEvent = threading.Event()
+TrialEvent = threading.Event()
+lickQueue = queue.Queue()
+timerQueue = queue.Queue()
+
+Debug = True
+if Debug: #Debugging
+    subjID = "Test"
+    paramsFile = '/home/ramartin/PhotoBAT/params/params.txt'
+    outputFile = '/home/ramartin/PhotoBAT/data/20250204/20250204None.txt'
+    
+class passiveTableCanvas(tkintertable.TableCanvas):
+    def __init__(self, master=None, *args, **kw):
+        super().__init__(master, *args, **kw)
+        self.columnactions = {}
+
+    def drawCellEntry(self, row, col):
+        pass
+
+def TrialGui(paramsFile, outputFile, subjID):
+    def on_close():
+        abortSession = easygui.ccbox(msg="Terminate Session?",title="Terminate Check")
+        if abortSession:
+            sessionGUI.destroy()  # Destroy the Toplevel window
+            if not isChild: root.destroy()    # Destroy the hidden root window
+            raise KeyboardInterrupt
+        else:
+            pass
+
+    def runSession():
+        global paramsData, TrialEventWasSet
+        #Wait to run session
+        AbortEvent.clear()        
+        
+        #Flip to running session
+        runButton.destroy()  # Destroy the run button, and replace it with an Abort button
+        abortButton = tk.Button(controlFrame,text="Abort",command=on_close,width=9)
+        abortButton.grid(row=0, column=0, padx=10, pady=10)
+        tableFrame.configure(text = "Session Data")
+        paramsData.insert(loc=4, column= 'Licks',value =[None]*len(paramsData))
+        paramsData.insert(loc=5, column= 'Latency',value =[None]*len(paramsData))
+        paramTable.model.importDict(paramsData.to_dict(orient="index"))  # Update the table model
+        paramTable.model.columnNames = list(paramsData.columns)  # Force correct column order
+        paramTable.redraw()  # Refresh table display
+        table_model.columnwidths = {col_name: 50 for col_name in table_model.columnNames}  # Adjust 50 to your preference
+
+        #Start Updating the information display
+        TrialEventWasSet = False
+        updateInfo()
+
+        
+    def updateTrial():
+        global paramsData
+        with open(outputFile, 'r') as trialFile:
+            trialData = trialFile.readlines()
+        csvStart = [lineN for lineN, line in enumerate(trialData) if 'PRESENTATION,TUBE,' in line][0]
+        csvEnd = [lineN for lineN, line in enumerate(trialData) if len(line) == 1][0]
+        trialN = (csvEnd-csvStart)-1
+        trialData = pd.read_csv(filepath_or_buffer=outputFile,skiprows=csvStart,nrows=trialN)  # Read as CSV
+        
+        lickValue = int(trialData.LICKS[trialN-1])
+        latencyValue = int(trialData.LICKS[trialN-1])
+        paramsData.at[trialN, 'Licks'] = lickValue
+        paramsData.at[trialN, 'Latency'] = latencyValue
+        paramTable.model.importDict(paramsData.to_dict(orient="index"))
+        paramTable.redraw()
+        
+                
+    def updateInfo():
+        global timerIs, TrialEventWasSet
+        #update data in the table display
+        try: 
+            lickIs = lickQueue.get_nowait() #Read lick data off the queue
+            if lickIs == 1:
+                eventDispEnt.set("Licking")
+            lickDispEnt.set(lickIs) #Write lick data to GUI
+        except queue.Empty:
+            pass
+        try:
+            timerIs = timerQueue.get_nowait() #Read timer data off the queue. timerQueue needs to be formatted as the endpoint time of the current timer
+        except queue.Empty:
+            pass
+        timerDispEnt.set(f'{round(timerIs - time.time(),2):.3f}') #Write timer data to GUI
+        
+        if TrialEvent.is_set() and not TrialEventWasSet:
+            eventDispEnt.set("Waiting")
+        if TrialEventWasSet and not TrialEvent.is_set():
+            eventDispEnt.set("ITI")
+            updateTrial() 
+        TrialEventWasSet = TrialEvent.is_set()
+        sessionGUI.after(10,updateInfo)
+        
+    
+    #Start GUI Code
+    global timerIs, paramsData
+    timerIs = time.time()
+    if not tk._default_root:
+        root = tk.Tk()  # Create a root window if none exists
+        root.withdraw()  # Hide the root window since we only want Toplevel
+        isChild = False
+    else:
+        isChild = True
+        root = tk._default_root  # Use the existing root
+    version, paramsData = readParameters(paramsFile)
+    sessionGUI = tk.Toplevel(root)
+    sessionGUI.title(f"BAT Session: {subjID}")
+    sessionGUI.protocol("WM_DELETE_WINDOW", on_close)
+    tableFrame = tk.LabelFrame(sessionGUI, text = "Session Parameters")
+    tableFrame.grid(row=0, column=0, padx=10, pady=10, rowspan=3, sticky='nwse')
+    table_model = tkintertable.TableModel()
+    table_model.importDict(paramsData.to_dict(orient="index"))
+    table_model.columnwidths = {col_name: 50 for col_name in table_model.columnNames}  # Adjust 50 to your preference
+    # Create and display the table
+    paramTable = passiveTableCanvas(tableFrame, model=table_model)
+    paramTable.show()
+
+    #Frame for controls
+    controlFrame = tk.LabelFrame(sessionGUI, text = "Session Controls")
+    controlFrame.grid(row=0, column=1, padx=10, pady=10, sticky='nw', rowspan=1)
+    #Run Session Button
+    runButton = tk.Button(controlFrame, text="Run Session", command=runSession, width=9)
+    runButton.grid(row=0, column=0, padx=10, pady=10)
+    
+    #Frame for Display
+    infoFrame = tk.LabelFrame(sessionGUI, text = "Session Information")
+    infoFrame.grid(row=1, column=1, padx=10, pady=10, sticky='nsew', rowspan=2)
+    infoRow = 0
+    infoPad = 5
+    lickLabel = tk.Label(infoFrame, text= "Lick Count:")
+    lickLabel.grid(row=infoRow, column=0, padx=infoPad, pady=10, sticky='ne', rowspan=1)
+    lickDispEnt = tk.IntVar(0)
+    lickDispBox = tk.Label(infoFrame, textvariable=lickDispEnt, background='white', borderwidth=1, relief="solid", width=7, anchor='e')
+    lickDispBox.grid(row=infoRow, column=1, padx=infoPad, pady=10, sticky='nw', rowspan=1)
+    infoRow +=1
+    eventLabel = tk.Label(infoFrame, text= "Current Event:")
+    eventLabel.grid(row=infoRow, column=0, padx=infoPad, pady=10, sticky='ne', rowspan=1)
+    eventDispEnt = tk.StringVar(); eventDispEnt.set("0")
+    eventDispBox = tk.Label(infoFrame, textvariable=eventDispEnt, background='white', borderwidth=1, relief="solid", width=7, anchor='e')
+    eventDispBox.grid(row=infoRow, column=1, padx=infoPad, pady=10, sticky='nw', rowspan=1)
+    infoRow +=1
+    timerLabel = tk.Label(infoFrame, text= "Timer:")
+    timerLabel.grid(row=infoRow, column=0, padx=infoPad, pady=10, sticky='ne', rowspan=1)
+    timerDispEnt = tk.StringVar(); timerDispEnt.set("0")
+    timerDispBox = tk.Label(infoFrame, textvariable=timerDispEnt, background='white', borderwidth=1, relief="solid", width=7, anchor='e')
+    timerDispBox.grid(row=infoRow, column=1, padx=infoPad, pady=10, sticky='nw', rowspan=1)
+    
+    sessionGUI.mainloop()
