@@ -418,7 +418,6 @@ try:
     for trialN, spoutN in enumerate(TubeSeq): #trialN was index, spoutN was trial #spoutN = 2; trialN = 1
         #Set index for identifying stimuli
         taste_idx = int((spoutN - 2) / 2)
-        padN = mprPads[taste_idx]
         
         #Check max session time
         if time.time() - exp_init_time >= SessionTimeLimit: #If session duration expires, exit the for loop
@@ -510,9 +509,9 @@ try:
             if rig.AbortEvent.is_set():
                 raise KeyboardInterrupt()
             if lickMode == 'cap':
-                current_poke = capSens.touched_pins
+                current_poke = (capSens.touched_pins)[mprPads[taste_idx]]
             else:
-                current_poke = GPIO.input(nosepokeIR)[padN]
+                current_poke = GPIO.input(nosepokeIR)
             
             # First check if transitioned from not poke to poke.
             if current_poke == 0 and last_poke == 1: # 0 indicates poking
