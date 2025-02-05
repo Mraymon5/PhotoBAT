@@ -17,7 +17,6 @@ import sys
 import threading
 
 #Currently unused modules
-import busio
 import atexit
 import subprocess
 import signal
@@ -106,6 +105,7 @@ if args.ParamsFile is None:
 #ParamsFile = '/home/ramartin/Documents/Forms/TrialParamsTemplate.txt'
 spoutAddress = np.arange(2, rigParams['tableTotalPositions']+2,2)
 NSpouts = len(spoutAddress)
+lickMode = rigParams['lickMode']
 
 if ParamsFile is not None:
     with open(ParamsFile, 'r') as params:
@@ -357,18 +357,29 @@ ms1Pin,ms2Pin,ms3Pin =  rigParams['msPins']
 hallPin = rigParams['hallPin']     # Hall effect pin, was he_pin
 np_led = rigParams['lickLEDPin'] # LED lick indicator pin, was np_led
 nosepokeIR = rigParams['lickBeamPin'] #lick beam input pin, was nosepokeIR
-laserPin = rigParams['laserPin'] # laser output pin, was laserOut
+laserPin = rigParams['laserPin'] # laser output pin
 beamIntanIn = rigParams['intanBeamPin'] # intan lick indicator output, was beamIntanIn
 cueIntanIn = rigParams['intanTrialPin'] # intan trial indicator output, was cueIntanIn
 spoutsIntanIn = rigParams['intanSpoutPins'][0:NSpouts]
-tot_pos = rigParams['tableTotalPositions']     # Total Positions on table, including walls
+tot_pos = rigParams['tableTotalPositions'] # Total Positions on table, including walls
 cur_pos = 1     # Initial position of table should be 1
 dest_pos = TubeSeq[0]
-Mode = rigParams['tableStepMode']
+stepMode = rigParams['tableStepMode'] #Mode
 
 # set up RGB LEDs
 bluePin, greenPin, redPin = rigParams['cueLEDPins']
 led = RGBLed(redPin, greenPin, bluePin)
+
+# Set Up Touch Sensor
+if lickMode == "cap":
+    import board
+    import busio
+    import adafruit_mpr121
+    i2c=busio.I2C(board.SCL, board.SDA)
+    capSens = adafruit_mpr121.MPR121(i2c)
+    mprPads = [0,1,2,3,4,5,6,7,8,9,10,11]
+    pass
+
 
 #Configure all GPIO pins listed in rigParams
 rig.configureIOPins()
@@ -401,6 +412,7 @@ try:
     for trialN, spoutN in enumerate(TubeSeq): #trialN was index, spoutN was trial #spoutN = 2; trialN = 1
         #Set index for identifying stimuli
         taste_idx = int((spoutN - 2) / 2)
+        padN = mprPads[taste_idx]
         
         #Check max session time
         if time.time() - exp_init_time >= SessionTimeLimit: #If session duration expires, exit the for loop
@@ -442,7 +454,7 @@ try:
         # create Motor instance
         motora = Motor(stepPin, directionPin, enablePin, ms1Pin, ms2Pin, ms3Pin)
         motora.init()
-        revolution = motora.setStepSize(Mode)
+        revolution = motora.setStepSize(stepMode)
         
         # start nose poke detection
         NP_process = Popen(['python', 'nose_poking.py', subjID, f'{trialN}'], shell=False)
@@ -457,10 +469,15 @@ try:
         cur_pos = dest_pos
     
         # detecting the current status of touch sensor
-        last_poke = GPIO.input(nosepokeIR) # return status (touched or not) for each pin as a tuple
-        print("Beam is clear") if last_poke else print ("Beam is blocked")
-        while not last_poke: # stay here if beam broken
-            last_poke = GPIO.input(nosepokeIR) # make sure nose-poke is not blocked when starting
+        if lickMode == 'cap':
+            last_poke = capSens.touched_pins # return status (touched or not) for each pin as a tuple
+            while any(last_poke):
+                last_touched = capSens.touched_pins # make sure last_touched is not touched
+        else:
+            last_poke = GPIO.input(nosepokeIR) # return status (touched or not) for each pin as a tuple
+            print("Beam is clear") if last_poke else print ("Beam is blocked")
+            while not last_poke: # stay here if beam broken
+                last_poke = GPIO.input(nosepokeIR) # make sure nose-poke is not blocked when starting
             
         #Save Trial Start Time
         trial_start_time = time.time()
@@ -474,7 +491,10 @@ try:
         while ((time.time() - trial_init_time < trialTimeLimit) if LickTime[trialN] is not None else True) and \
               (time.time() - exp_init_time < SessionTimeLimit) and \
               (len(licks[this_spout][this_trial_num]) < LickCount[trialN] if LickCount[trialN] is not None else True):
-            current_poke = GPIO.input(nosepokeIR)
+            if lickMode == 'cap':
+                current_poke = capSens.touched_pins
+            else:
+                current_poke = GPIO.input(nosepokeIR)[padN]
             
             # First check if transitioned from not poke to poke.
             if current_poke == 0 and last_poke == 1: # 0 indicates poking
@@ -500,7 +520,7 @@ try:
                     print('Beam Broken! -- Lick_{}'.format(len(licks[this_spout][-1])))
     
             # Update last state and wait a short period before repeating.
-            last_poke = GPIO.input(nosepokeIR)
+            last_poke = current_poke
             time.sleep(0.001)
             
         # make sure the touch sensor is off after the trial
@@ -598,12 +618,13 @@ finally:
     GPIO.output(cueIntanIn,GPIO.LOW) #Turn off the cue Intan
     GPIO.output(spoutsIntanIn,GPIO.LOW) #Turn off the spout Intan(s)
     GPIO.output(beamIntanIn,GPIO.LOW) #Turn off the beam Intan
-    
+    GPIO.output(laserPin,GPIO.LOW) #Turn off the beam Intan
+
     # Return spout to home. This won't work if session is aborted while moving motor
     # create Motor instance
     motora = Motor(stepPin, directionPin, enablePin, ms1Pin, ms2Pin, ms3Pin)
     motora.init()
-    revolution = motora.setStepSize(Mode)
+    revolution = motora.setStepSize(stepMode)
     # Turn the motor
     turn_dir, n_shift = rotate_dir(cur_pos, 1, tot_pos = tot_pos)
     if turn_dir == -1: # turn clockwise
