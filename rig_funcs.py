@@ -231,27 +231,29 @@ def fireLaser(laserPin,duration):
     GPIO.output(laserPin,GPIO.LOW)
 
 #%% Functions for running the Session Gui    
-#Make tables that don't allow editing
 AbortEvent = threading.Event()
 TrialEvent = threading.Event()
 lickQueue = queue.Queue()
 timerQueue = queue.Queue()
+trialQueue = queue.Queue()
 
-Debug = True
+Debug = False
 if Debug: #Debugging
     subjID = "Test"
     paramsFile = '/home/ramartin/PhotoBAT/params/params.txt'
     outputFile = '/home/ramartin/PhotoBAT/data/20250204/20250204None.txt'
     
-class passiveTableCanvas(tkintertable.TableCanvas):
-    def __init__(self, master=None, *args, **kw):
-        super().__init__(master, *args, **kw)
-        self.columnactions = {}
-
-    def drawCellEntry(self, row, col):
-        pass
 
 def TrialGui(paramsFile, outputFile, subjID):
+    #Make tables that don't allow editing
+    class passiveTableCanvas(tkintertable.TableCanvas):
+        def __init__(self, master=None, *args, **kw):
+            super().__init__(master, *args, **kw)
+            self.columnactions = {}
+
+        def drawCellEntry(self, row, col):
+            pass
+
     def on_close():
         abortSession = easygui.ccbox(msg="Terminate Session?",title="Terminate Check")
         if abortSession:
@@ -285,20 +287,16 @@ def TrialGui(paramsFile, outputFile, subjID):
         
     def updateTrial():
         global paramsData
-        with open(outputFile, 'r') as trialFile:
-            trialData = trialFile.readlines()
-        csvStart = [lineN for lineN, line in enumerate(trialData) if 'PRESENTATION,TUBE,' in line][0]
-        csvEnd = [lineN for lineN, line in enumerate(trialData) if len(line) == 1][0]
-        trialN = (csvEnd-csvStart)-1
-        trialData = pd.read_csv(filepath_or_buffer=outputFile,skiprows=csvStart,nrows=trialN)  # Read as CSV
-        
-        lickValue = int(trialData.LICKS[trialN-1])
-        latencyValue = int(trialData.LICKS[trialN-1])
-        paramsData.at[trialN, 'Licks'] = lickValue
-        paramsData.at[trialN, 'Latency'] = latencyValue
-        paramTable.model.importDict(paramsData.to_dict(orient="index"))
-        paramTable.redraw()
-        
+        try:
+            trialData = trialQueue.get_nowait()  # Non-blocking queue retrieval
+            trialN, NLicks, latency = trialData  # Unpack the list
+            paramsData.at[trialN, 'Licks'] = NLicks
+            paramsData.at[trialN, 'Latency'] = latency
+            paramTable.model.importDict(paramsData.to_dict(orient="index"))
+            paramTable.redraw()
+        except queue.Empty:
+            pass  # No new trial data yet
+    
                 
     def updateInfo():
         global timerIs, TrialEventWasSet
