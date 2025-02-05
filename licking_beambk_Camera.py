@@ -15,6 +15,7 @@ import random
 from datetime import datetime
 import sys
 import threading
+import queue
 
 #Currently unused modules
 import atexit
@@ -347,8 +348,6 @@ print('Taste Sequence: {}'.format(TubeSeq))
 
 #%% Setup Hardware
 
-#TODO incorporate importing of hardware parameters
-#TODO incorporate laser output; should handle 2 conditions; laser on at shutter open, or laser on at lick onset
 # setup motor [40 pin header for newer Raspberry Pi's]
 stepPin =  rigParams['stepPin']       # Pin assigned to motor controller steps
 directionPin =  rigParams['tableStepMode']  # Pin assigned to motor controller direction
@@ -396,9 +395,16 @@ if useCamera == 'True':
     
 #%% Finish initializing the session
 #Final Check
-input('===  Please press ENTER to start the experiment ===')
+rig.AbortEvent.set() #Set the abort event, which will be turned off to start the session
+guiThread = threading.Thread(target=rig.TrialGui, kwargs={'paramsFile':ParamsFile, 'outputFile':outputFile, 'subjID':subjID}, daemon=True)
+guiThread.start()
+#input('===  Please press ENTER to start the experiment ===')
 print('\n=== Press Ctrl-C to abort session ===\n')
-
+while rig.AbortEvent.is_set():
+    try:
+        time.sleep(0.001)
+    except:
+        rig.AbortEvent.clear()
 # save trial start time
 exp_init_time = time.time()
 startIPI = exp_init_time
@@ -419,8 +425,11 @@ try:
             break
 
         #Run Trial IPI
-        time.sleep(IPITimes[trialN] - (startIPI - time.time()))
-    
+        while (time.time() - startIPI) < IPITimes[trialN]:
+            if rig.AbortEvent.is_set():
+                raise KeyboardInterrupt()
+            time.sleep(0.001)
+            
         # turn on nose poke LED cue and send signal to intan
         if useLED == 'Cue':
             # turn_off house white led light
@@ -485,12 +494,21 @@ try:
         last_break = trial_start_time
         trialTimeLimit = MaxWaitTime[trialN] #Initially set the trial time limit to the max wait for this trial
         print('Start detecting licks/nosepokes')
+
+        #Update Lick Count and trial event in GUI
+        rig.lickQueue.put(len(licks[this_spout][this_trial_num])) #push lick count to gui
+        rig.TrialEvent.set() #Let gui know a trial has started
+        rig.timerQueue.put(trial_start_time+trialTimeLimit) #push the timeout time to GUI
+
         #Start the camera
         if useCamera == 'True': camera.startBuffer()
 
-        while ((time.time() - trial_init_time < trialTimeLimit) if LickTime[trialN] is not None else True) and \
+        while (time.time() - trial_init_time < trialTimeLimit) and \
               (time.time() - exp_init_time < SessionTimeLimit) and \
               (len(licks[this_spout][this_trial_num]) < LickCount[trialN] if LickCount[trialN] is not None else True):
+            
+            if rig.AbortEvent.is_set():
+                raise KeyboardInterrupt()
             if lickMode == 'cap':
                 current_poke = capSens.touched_pins
             else:
@@ -508,10 +526,13 @@ try:
 
                 if beam_unbroken - beam_break > 0.02: # to avoid noise (from motor)- induced licks
                     licks[this_spout][this_trial_num].append(round((beam_break-last_break)*1000))
-                    if len(licks[this_spout][this_trial_num]) == 1:
+                    rig.lickQueue.put(len(licks[this_spout][this_trial_num])) #Send new lick to GUI
+                    if len(licks[this_spout][this_trial_num]) == 1: #If this is the first lick:
                         trial_init_time = beam_break #if lick happens, reset the trial_init time
-                        trialTimeLimit = LickTime[trialN] if LickTime[trialN] is not None else 6000 #If a lick happens, reset the trial time limit to maximal lick time
-                        if useCamera == 'True': camera.saveBufferAndCapture(duration=trialTimeLimit, title=f'{subjID}_trial{trialN}', outputFolder=dat_folder, start_time = trial_init_time)
+                        trialTimeLimit = LickTime[trialN] if LickTime[trialN] is not None else trialTimeLimit #If a lick happens, reset the trial time limit to maximal lick time
+                        rig.timerQueue.put(trial_init_time+trialTimeLimit) #push the timeout time to GUI
+                        camTimeLimit = LickTime[trialN] if LickTime[trialN] is not None else 20 #If a lick happens, reset the trial time limit to maximal lick time
+                        if useCamera == 'True': camera.saveBufferAndCapture(duration=min(20,camTimeLimit), title=f'{subjID}_trial{trialN}', outputFolder=dat_folder, start_time = trial_init_time) #Camera recording period capped to 20sec
                         if useLaser[trialN] == 'Lick':
                             laserTimeLimit = [LickTime[trialN] if LickTime[trialN] is not None else 5]
                             laserThread = threading.Thread(target=rig.fireLaser, kwargs={'laserPin':laserPin, 'duration':laserTimeLimit})
@@ -528,7 +549,9 @@ try:
     
         #Start the clock for IPI
         startIPI = time.time()
-    
+        rig.timerQueue.put(startIPI+IPITimes[trialN+1]) #push the timeout time to GUI
+        rig.TrialEvent.clear() #Let gui know a trial has ended
+        
         # find rest_direction
         cur_pos = TubeSeq[trialN]
         if trialN < len(TubeSeq) - 1:
