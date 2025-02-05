@@ -568,7 +568,8 @@ try:
             outputFile.write(f'{trialN + 1}{outLicks}\n')
 
         # Push trial information to the GUI
-        rig.timerQueue.put(startIPI+IPITimes[trialN+1]) #push the timeout time to GUI
+        if trialN+1<NTrials:
+            rig.timerQueue.put(startIPI+IPITimes[trialN+1]) #push the timeout time to GUI
         rig.trialQueue.put([trialN,NLicks,latency])
         rig.TrialEvent.clear() #Let gui know a trial has ended
 
