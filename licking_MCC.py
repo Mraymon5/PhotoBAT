@@ -103,7 +103,7 @@ def runSession():
             curPos = dest_pos
 
             #Run Trial IPI
-            time.sleep(IPITimes[trialN] - (startIPI - time.time()))
+            time.sleep(IPITimes[trialN] - (time.time() - startIPI))
 
             # Open Shutter, in a thread so that other operations can proceed
             shutterThread = threading.Thread(target=dav.moveShutter, kwargs={'Open':True})
