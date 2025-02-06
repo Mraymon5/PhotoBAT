@@ -94,7 +94,8 @@ def detect_magnet(he_inport = hallPin, wait = 0.5):
     GPIO.setwarnings(False)
     GPIO.cleanup()
     GPIO.setmode(GPIO.BCM)
-    
+    GPIO.setwarnings(False)
+
     inport = he_inport
     GPIO.setup(inport, GPIO.IN)
     
@@ -117,6 +118,7 @@ def align_zero(step=stepPin, direction=directionPin,enable=enablePin,ms1=ms1Pin,
     print(f'Total steps in this mode: {revolution}')
     inport = he_inport
     GPIO.setmode(GPIO.BCM)
+    GPIO.setwarnings(False)
     GPIO.setup(inport, GPIO.IN)
     n = 0 # iterator to stop the motor if it passes a full rotation
     #If the mag sensor is aligned, move away from it
