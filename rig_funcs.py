@@ -259,7 +259,7 @@ def TrialGui(paramsFile, outputFile, subjID):
         if abortSession:
             AbortEvent.set()
             sessionGUI.destroy()  # Destroy the Toplevel window
-            if not isChild: root.destroy()    # Destroy the hidden root window
+            if not isChild: trialRoot.destroy()    # Destroy the hidden root window
         else:
             pass
 
@@ -327,14 +327,14 @@ def TrialGui(paramsFile, outputFile, subjID):
     global timerIs, paramsData
     timerIs = time.time()
     if not tk._default_root:
-        root = tk.Tk()  # Create a root window if none exists
-        root.withdraw()  # Hide the root window since we only want Toplevel
+        trialRoot = tk.Tk()  # Create a root window if none exists
+        trialRoot.withdraw()  # Hide the root window since we only want Toplevel
         isChild = False
     else:
         isChild = True
-        root = tk._default_root  # Use the existing root
+        trialRoot = tk._default_root  # Use the existing root
     version, paramsData = readParameters(paramsFile)
-    sessionGUI = tk.Toplevel(root)
+    sessionGUI = tk.Toplevel(trialRoot)
     sessionGUI.title(f"BAT Session: {subjID}")
     sessionGUI.protocol("WM_DELETE_WINDOW", on_close)
     tableFrame = tk.LabelFrame(sessionGUI, text = "Session Parameters")
