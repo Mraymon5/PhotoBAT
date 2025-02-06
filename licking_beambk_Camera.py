@@ -380,7 +380,7 @@ if lickMode == "cap":
 
 #Configure all GPIO pins listed in rigParams
 rig.configureIOPins()
-if hallPin > 0: rig.align_zero(he_inport=rigParams['hallPin'], adjust_steps=rigParams['tableInitSteps'])
+if hallPin > 0: rig.align_zero(he_inport=rigParams['hallPin'], adjust_steps=rigParams['tableInitSteps'][stepMode])
 # Setup Camera: test settings with CamerControl.preview
 if useCamera == 'True':
     #CameraControl.preview(mode=2)
@@ -441,7 +441,8 @@ def runSession():
                 #else:
                 #   led.green_on()
             if useLaser[trialN] == 'Trial':
-                laserTimeLimit = [LickTime[trialN] if LickTime[trialN] is not None else 5]
+                laserTimeLimit = [LickTime[trialN] if LickTime[trialN] is not None else 5][0]
+                print(f'laser pin: {laserPin}, duration: {laserTimeLimit}')
                 laserThread = threading.Thread(target=rig.fireLaser, kwargs={'laserPin':laserPin, 'duration':laserTimeLimit})
                 laserThread.start()
             GPIO.output(cueIntanIn,GPIO.HIGH) #Set cue Intan in High
@@ -503,7 +504,7 @@ def runSession():
             #Start the camera
             if useCamera == 'True': camera.startBuffer()
     
-            while (time.time() - trial_init_time < trialTimeLimit) if trialTimeLimit is not None else True and \
+            while ((time.time() - trial_init_time < trialTimeLimit) if trialTimeLimit is not None else True) and \
                   (time.time() - exp_init_time < SessionTimeLimit) and \
                   (len(licks[this_spout][this_trial_num]) < LickCount[trialN] if LickCount[trialN] is not None else True):
                 
@@ -537,7 +538,8 @@ def runSession():
                             camTimeLimit = LickTime[trialN] if LickTime[trialN] is not None else 20 #If a lick happens, reset the trial time limit to maximal lick time
                             if useCamera == 'True': camera.saveBufferAndCapture(duration=min(20,camTimeLimit), title=f'{subjID}_trial{trialN}', outputFolder=dat_folder, start_time = trial_init_time) #Camera recording period capped to 20sec
                             if useLaser[trialN] == 'Lick':
-                                laserTimeLimit = [LickTime[trialN] if LickTime[trialN] is not None else 5]
+                                laserTimeLimit = [LickTime[trialN] if LickTime[trialN] is not None else 5][0]
+                                print(f'laser pin: {laserPin}, duration: {laserTimeLimit}')
                                 laserThread = threading.Thread(target=rig.fireLaser, kwargs={'laserPin':laserPin, 'duration':laserTimeLimit})
                                 laserThread.start()
                         last_break = beam_break
