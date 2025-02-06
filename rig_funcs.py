@@ -5,8 +5,7 @@ import easygui
 import atexit
 import warnings
 import tkintertable
-#import tkinter as tk
-from mttkinter import mtTkinter as tk
+import tkinter as tk
 import threading
 import queue
 import pandas as pd
