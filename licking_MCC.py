@@ -398,8 +398,6 @@ rig.AbortEvent.set() #Set the abort event, which will be turned off to start the
 
 #TODO investigate putting all this code in a thread and running the gui in main thread
 def runSession():
-    curPos = 1 # Initial position of table should be 1
-
     #Final Check
     #input('===  Please press ENTER to start the experiment ===')
     print('\n=== Press Ctrl-C to abort session ===\n')
@@ -418,6 +416,7 @@ def runSession():
     
     #%% Open the trial loop
     cleanRun = False
+    curPos = 1 # Initial position of table should be 1
     try:
         for trialN, spoutN in enumerate(TubeSeq): #trialN was index, spoutN was trial #spoutN = 2; trialN = 1
             #Check max session time
