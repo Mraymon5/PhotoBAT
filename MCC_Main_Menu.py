@@ -1,13 +1,10 @@
 #Import Modules
-import time
 import tkinter as tk
 from tkinter import ttk
 import tkintertable
 import sys
 import os
 import easygui
-import random
-import pandas
 import subprocess
 
 #Import Scripts
@@ -90,11 +87,13 @@ def create_paramsFile():
         updateVersion()
 
 def display_parameters():
-    version,trialData = readParameters(paramsFile=paramsFile)
+    version, trialData = readParameters(paramsFile=paramsFile)
     paramDisp = tk.Toplevel(root)
     paramDisp.title("Session Parameters")
+    
     frame = tk.Frame(paramDisp)
-    frame.pack(fill="both", expand=True)
+    frame.grid(row=0, column=0, padx=10, pady=10)
+    
     table_model = tkintertable.TableModel()
     table_model.importDict(trialData.to_dict(orient="index"))
     
@@ -102,7 +101,21 @@ def display_parameters():
     table = passiveTableCanvas(frame, model=table_model)
     table.show()
 
-    paramDisp.mainloop()
+    # Function to clean up bindings when window is closed
+    def on_close():
+        table.unbind_all("<Up>")
+        table.unbind_all("<Down>")
+        table.unbind_all("<Left>")
+        table.unbind_all("<Right>")
+        table.unbind_all("<Return>")
+        table.unbind_all("<Delete>")
+        table.unbind("<KP_Up>")
+        table.unbind("<KP_Down>")
+        table.unbind("<KP_Left>")
+        table.unbind("<KP_Right>")
+        paramDisp.destroy()
+    
+    paramDisp.protocol("WM_DELETE_WINDOW", on_close)
 
 def updateVersion():
     version, trialData = readParameters(paramsFile=paramsFile)
@@ -117,9 +130,20 @@ def updateVersion():
 
 def updateFolder():
     global outputFolder
-    outputFolder = outputEnt.get()
-    outputLabel.config(text=outputFolder)
-    
+    outputTemp = outputEnt.get()
+    if os.path.isdir(outputTemp):
+        outputEnt.set(outputTemp)
+        outputFolder = outputTemp
+        update_line_in_file(file_path = rigParamsFile, keyword="outputFolder =", new_value=f'outputFolder = {outputFolder} #Path to last output directory')
+    else:
+        makeFolder = easygui.ccbox(msg=f"The folder {outputTemp} does not exist. Create it?", title="Make folder?")
+        if makeFolder:
+            os.mkdir(outputTemp)
+            outputFolder = outputTemp
+            update_line_in_file(file_path = rigParamsFile, keyword="outputFolder =", new_value=f'outputFolder = {outputFolder} #Path to last output directory')
+        else:
+            outputEnt.set(outputFolder)
+
 def selectOutput():
     global outputFolder
     tempFolder = easygui.diropenbox(msg="Select an Output Directory", default=outputFolder)
@@ -134,7 +158,7 @@ def runConfig():
         rigConfig()
     elif sysIs.get() == 'PhotoBAT':
         targetScript = os.path.join(base_path, 'BAT_Calibrate.py')
-        result = subprocess.run(["python", targetScript])
+        subprocess.run(["python", targetScript])
     elif sysIs.get() == 'IOC':
         easygui.msgbox(msg = 'IOC not implemented', title="Version Check")
     else:
@@ -150,7 +174,7 @@ def runSession():
         easygui.msgbox(msg = 'IOC not implemented', title="Version Check")
         import pi_rig
         root.destroy()
-        passive() #TODO implement this code
+        pi_rig.passive() #TODO implement this code
     else:
         targetScript = None
         easygui.msgbox(msg = 'Select hardware', title="Version Check")
@@ -159,7 +183,7 @@ def runSession():
                 "-p", paramsFile.strip(),
                 "-o", outputFolder.strip()]
         root.destroy()
-        result = subprocess.run(["python", targetScript] + args)
+        subprocess.run(["python", targetScript] + args)
 
 def featureWarn():
     easygui.msgbox(msg="This feature is not implemented", title="Warning")
@@ -168,51 +192,50 @@ def featureWarn():
 root = tk.Tk()
 root.title("Session Setup")
 ParamFrame = ttk.LabelFrame(root, text="Session Parameters")
-ParamFrame.grid(row=0, column=0, padx=10, pady=10)
+ParamFrame.grid(row=0, column=0, padx=10, pady=10, sticky='nwe')
 #Field showing param file. Autoload last?
-tk.Label(ParamFrame, text="Parameters File:").grid(row=0, column=0, padx=10, pady=5)
+tk.Label(ParamFrame, text="Parameters File:").grid(row=0, column=0, padx=10, pady=5, sticky='ne')
 paramLabel = tk.Label(ParamFrame, text=f"{paramsFile}")
-paramLabel.grid(row=0, column=1, padx=10, pady=5)
+paramLabel.grid(row=0, column=1, padx=10, pady=5, sticky='nw', columnspan=2)
 #Button to open param file
-tk.Button(ParamFrame, text="Select Params File", command=select_paramsFile).grid(row=1, column=0, padx=10, pady=10)
+tk.Button(ParamFrame, text="Select Params File", command=select_paramsFile, width=15).grid(row=1, column=0, padx=10, pady=10)
 #Button to create param file
-tk.Button(ParamFrame, text="Create Params File", command=create_paramsFile,).grid(row=1, column=1, padx=10, pady=10)
+tk.Button(ParamFrame, text="Create Params File", command=create_paramsFile, width=15).grid(row=1, column=1, padx=10, pady=10, sticky='nw')
 #Button to view parameters
-tk.Button(ParamFrame, text="Display Params", command=display_parameters).grid(row=2, column=0, padx=10, pady=10)
+tk.Button(ParamFrame, text="Display Params", command=display_parameters, width=15).grid(row=1, column=2, padx=10, pady=10)
 #Field for animal ID
-tk.Label(ParamFrame, text='Animal ID:').grid(row=3, column=0, padx=10, pady=5)
-ID_Ent = tk.Entry(ParamFrame, textvariable=tk.IntVar(value='ID'))
-ID_Ent.grid(row=3, column=1, padx=10, pady=5)
+tk.Label(ParamFrame, text='Animal ID:').grid(row=2, column=0, padx=10, pady=5,sticky='ne')
+ID_Ent = tk.Entry(ParamFrame, textvariable=tk.IntVar(value='ID'), width=15)
+ID_Ent.grid(row=2, column=1, padx=10, pady=5, sticky='nw')
 
 OutputFrame = ttk.LabelFrame(root, text="Output Folder")
-OutputFrame.grid(row=1, column=0, padx=10, pady=10)
+OutputFrame.grid(row=1, column=0, padx=10, pady=10, sticky='nwe')
 #Field showing output folder. Autoload last, save to machine params
-tk.Label(OutputFrame, text="Output Folder:").grid(row=0, column=0, padx=10, pady=5)
+tk.Label(OutputFrame, text="Output Folder:").grid(row=0, column=0, padx=10, pady=5, sticky='ne')
 outputEnt = tk.StringVar()
 outputEnt.set(outputFolder)
-outputLabel = tk.Label(OutputFrame,textvariable=outputEnt)
-outputLabel.grid(row=0, column=1, padx=10, pady=5)
 #Field for entering new folder path
-outputEntBox = tk.Entry(OutputFrame, textvariable=outputEnt)
-outputEntBox.grid(row=1, column=0, padx=10, pady=5)
+outputEntBox = tk.Entry(OutputFrame, textvariable=outputEnt, width=40)
+outputEntBox.grid(row=0, column=1, padx=10, pady=5, columnspan=2)
 #Button to update output folder?
-tk.Button(OutputFrame, text="Update Folder", command=updateFolder).grid(row=1, column=1, padx=10, pady=10)
+tk.Button(OutputFrame, text="Update Folder", command=updateFolder, width=15).grid(row=1, column=0, padx=10, pady=10)
 #Button to open folder dialog
-tk.Button(OutputFrame, text="Select Folder", command=selectOutput).grid(row=2, column=1, padx=10, pady=10)
+tk.Button(OutputFrame, text="Select Folder", command=selectOutput, width=15).grid(row=1, column=1, padx=10, pady=10, sticky='nw')
 
 RunFrame = ttk.LabelFrame(root, text="Hardware Control")
-RunFrame.grid(row=2, column=0, padx=10, pady=10)
+RunFrame.grid(row=2, column=0, padx=10, pady=10, sticky='nw')
 #Button to run config
-tk.Button(RunFrame, text="Config Rig", command=runConfig).grid(row=1, column=0, padx=10, pady=10)
+tk.Button(RunFrame, text="Config Rig", command=runConfig,width=15).grid(row=1, column=0, padx=10, pady=10)
 #Button to start session?
-tk.Button(RunFrame, text="Run Session", command=runSession).grid(row=1, column=1, padx=10, pady=10)
+tk.Button(RunFrame, text="Run Session", command=runSession,width=15).grid(row=1, column=1, padx=10, pady=10)
 #Button for whether this is a Davis Rig
 sysLabel = tk.Label(RunFrame, text="Hardware Version:")
-sysLabel.grid(row = 0, column=0, padx=10, pady=5)
+sysLabel.grid(row = 0, column=0, padx=10, pady=5, sticky='ne')
 sysOptions = ['PhotoBAT', 'Davis Rig', 'IOC']
 sysIs = tk.StringVar()
 sysIs.set('Select Hardware')
 sysList = tk.OptionMenu(RunFrame,sysIs, *sysOptions)
+sysList.config(width=13)
 sysList.grid(row = 0, column=1, padx=10, pady=5)
 updateVersion()
 
