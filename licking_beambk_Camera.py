@@ -394,6 +394,7 @@ if useCamera == 'True':
 #%% Finish initializing the session
 #Final Check
 rig.AbortEvent.set() #Set the abort event, which will be turned off to start the session
+rig.TrialEvent.set() #Set the trial event, which will be turned off to start the session
 #guiThread = threading.Thread(target=rig.TrialGui, kwargs={'paramsFile':paramsFile, 'outputFile':outputFile, 'subjID':subjID}, daemon=True)
 #guiThread.start()
 def runSession():
@@ -425,6 +426,9 @@ def runSession():
                 break
     
             #Run Trial IPI
+            rig.timerQueue.put(startIPI+IPITimes[trialN]) #push the timeout time to GUI
+            rig.TrialEvent.clear() #Let gui know IPI has started
+
             while (time.time() - startIPI) < IPITimes[trialN]:
                 if rig.AbortEvent.is_set():
                     raise KeyboardInterrupt()
@@ -625,11 +629,7 @@ def runSession():
                 outputFile.write(f'{trialN + 1}{outLicks}\n')
                 
             # Push trial information to the GUI
-            if trialN+1<NTrials:
-                rig.timerQueue.put(startIPI+IPITimes[trialN+1]) #push the timeout time to GUI
             rig.trialQueue.put([trialN,NLicks,latency])
-            rig.TrialEvent.clear() #Let gui know a trial has ended
-    
     
             # print out number of licks being made on this trial
             print('{} licks on Trial {}'.format(NLicks, trialN))
@@ -697,6 +697,7 @@ def runSession():
                 json.dump(param_dict, f)
         
         print('======= Remove rat from the box to its home cage =======')
+        rig.AbortEvent.set()
 
 #%%
 sessionThread = threading.Thread(target=runSession,daemon=True)
