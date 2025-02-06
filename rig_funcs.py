@@ -226,11 +226,13 @@ def configureIOPins():
 
 #Function to Power on Laser for some duration
 def fireLaser(laserPin,duration):
-    laserOnTime = time.time()
-    GPIO.output(laserPin,GPIO.HIGH)
-    while (time.time()-laserOnTime < duration):
-        time.sleep(1e-3)
-    GPIO.output(laserPin,GPIO.LOW)
+    try:
+        laserOnTime = time.time()
+        GPIO.output(laserPin,GPIO.HIGH)
+        while (time.time()-laserOnTime < duration):
+            time.sleep(1e-3)
+    finally:
+        GPIO.output(laserPin,GPIO.LOW)
 
 #%% Functions for running the Session Gui    
 AbortEvent = threading.Event()
@@ -257,7 +259,10 @@ def TrialGui(paramsFile, outputFile, subjID):
             pass
 
     def on_close():
-        abortSession = easygui.ccbox(msg="Terminate Session?",title="Terminate Check")
+        if AbortEvent.is_set(): #Read the abort event off of the session code, and skip the closing check
+            abortSession = True
+        else:
+            abortSession = easygui.ccbox(msg="Terminate Session?",title="Terminate Check")
         if abortSession:
             AbortEvent.set()
             sessionGUI.destroy()  # Destroy the Toplevel window
