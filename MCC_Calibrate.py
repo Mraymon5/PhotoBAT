@@ -50,7 +50,7 @@ def rigConfig():
         tableDir = int(tDirEnt.get()) #The base direction of the table
         tableSpeed = float(tSpdEnt.get())
         
-        outHeader = "#Davis Rig Hardware Parameters. You probably don't want to edit this manually; try MCC_Test.py instead.\n"
+        outHeader = "#Davis Rig Hardware Parameters. You probably don't want to edit this manually; try MCC_Main_Menu.py instead.\n"
         outboardNum = f"boardNum = {Dav.boardNum}\n"
         outshutterInitSteps = f"shutterInitSteps = {shutterInitSteps}\n"
         outshutterRunSteps = f"shutterRunSteps = {shutterRunSteps}\n"
