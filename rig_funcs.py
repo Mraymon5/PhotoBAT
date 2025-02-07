@@ -271,11 +271,12 @@ def TrialGui(paramsFile, outputFile, subjID):
             pass
 
     def runSession():
-        global paramsData, TrialEventWasSet
+        global paramsData, TrialEventWasSet, sessionStarted
         #Wait to run session
         AbortEvent.clear()        
-        
+                
         #Flip to running session
+        sessionStarted = True
         runButton.destroy()  # Destroy the run button, and replace it with an Abort button
         abortButton = tk.Button(controlFrame,text="Abort",command=on_close,width=9)
         abortButton.grid(row=0, column=0, padx=10, pady=10)
@@ -327,6 +328,10 @@ def TrialGui(paramsFile, outputFile, subjID):
             eventDispEnt.set("ITI")
             updateTrial() 
         TrialEventWasSet = TrialEvent.is_set()
+        
+        if sessionStarted and AbortEvent.is_set():
+            on_close()
+        
         sessionGUI.after(10,updateInfo)
         
     
