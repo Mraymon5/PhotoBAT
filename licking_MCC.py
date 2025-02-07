@@ -13,17 +13,6 @@ import argparse
 import random
 from datetime import datetime
 import threading
-import queue
-
-#Currently unused modules
-if False:
-    import digitalio
-    import busio
-    import atexit
-    import subprocess
-    import signal
-    from subprocess import Popen, PIPE
-    from pathlib import Path
 
 #%% Import the MCC library
 if sys.platform.startswith('linux'):
@@ -111,7 +100,6 @@ if args.paramsFile is None:
     paramsFile = easygui.fileopenbox(msg="Select a params file, or cancel for manual entry", default=paramsFolder)
 
 # Setup trial parameters
-#paramsFile = '/home/ramartin/Documents/Forms/TrialParamsTemplate.txt'
 if paramsFile is not None:
     with open(paramsFile, 'r') as params:
         paramsData = params.readlines()
@@ -392,15 +380,10 @@ if useCamera == 'True':
 #Function to start session
 shutterThread = None #Add this so that the thread can be resolved before shutterThread is instanced
 rig.AbortEvent.set() #Set the abort event, which will be turned off to start the session
-#guiThread = threading.Thread(target=rig.TrialGui, kwargs={'paramsFile':paramsFile, 'outputFile':outputFile, 'subjID':subjID}, daemon=True)
-#guiThread.start()
+rig.TrialEvent.set() #Set the trial event, which will be turned off to start the session
 
-
-#TODO investigate putting all this code in a thread and running the gui in main thread
 def runSession():
     #Final Check
-    #input('===  Please press ENTER to start the experiment ===')
-    print('\n=== Press Ctrl-C to abort session ===\n')
     while rig.AbortEvent.is_set():
         try:
             time.sleep(0.001)
