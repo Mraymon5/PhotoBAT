@@ -582,32 +582,17 @@ def runSession():
         
         #print(licks)
         for spout in spout_locs:
-            num_licks_trial = [len(i) for i in licks[spout]]
+            num_licks_trial = [len(i) if i is not None else None for i in licks[spout]]
             print(spout, num_licks_trial)
             
             tot_licks = np.concatenate(licks[spout])
             print("Total number of licks on {}: {}".format(spout, len(tot_licks)))
         
-        if 0: #old output files, disabled
-            with open(os.path.join(dat_folder, "{}_lickTime.pkl".format(subjID)), 'wb') as handle:
-                pickle.dump(licks, handle, protocol=pickle.HIGHEST_PROTOCOL)
-            
-            # save experimental info
-            param_dict = {}
-            param_dict['initial_wait'] = IPITimes[0]
-            param_dict['SessionTimeLimit'] = SessionTimeLimit
-            param_dict['MaxWaitTime'] = [f'{i}' for i in MaxWaitTime]
-            param_dict['LickTime'] = [f'{i}' for i in LickTime]
-            param_dict['IPITimes'] = [f'{i}' for i in IPITimes]
-            param_dict['taste_list'] = {k:t for k, t in zip([f'spout-{(i+1)*2}' for i in range(4)], t_list)}
-            param_dict['TubeSeq'] = [f'{i}' for i in TubeSeq]
-            param_dict['licks'] = licks
-            
-            with open(os.path.join(dat_folder, "{}_exp_info.json".format(subjID)), 'w') as f:
-                json.dump(param_dict, f)
-        
-        print('======= Remove rat from the box to its home cage =======')
-        rig.AbortEvent.set()
+        rig.AbortEvent.set() #Tell the GUI to close
+        if not cleanRun:
+            easygui.msgbox(msg="Session was interrupted: Check terminal for errors", title="Session Interrupted")
+        else:
+            easygui.msgbox(msg="Remove rat from the box to its home cage", title="Session Finished")
 
 #%%
 sessionThread = threading.Thread(target=runSession,daemon=True)
