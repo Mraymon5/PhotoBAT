@@ -289,7 +289,7 @@ def TrialGui(paramsFile, outputFile, subjID):
         table_model.columnwidths = {col_name: 50 for col_name in table_model.columnNames}  # Adjust 50 to your preference
 
         #Start Updating the information display
-        TrialEventWasSet = False
+        TrialEventWasSet = True
         updateInfo()
 
         
