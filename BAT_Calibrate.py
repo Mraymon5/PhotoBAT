@@ -207,7 +207,7 @@ def homePosition():
 #A function to change the table position, and udpate position dead-reckoning    
 def movePosition(forward):
     global TablePosition
-    if forward:
+    if not forward: #Had this backwards, `not` corrects it 
         Motor.turn(stepsPerTurn, Motor.CLOCKWISE)
         if TablePosition == rigParams['tableTotalPositions']:
             TablePosition = 1
