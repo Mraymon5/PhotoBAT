@@ -2,9 +2,14 @@
 import time
 import tkinter as tk
 from tkinter import ttk
+import os
+import sys
 
 #%% Import Local Functions
 import MCC_Setup
+
+base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+rigParamsFile = os.path.join(base_path, 'MCC_params.txt')
 
 def rigConfig():
     MCC = MCC_Setup.MCCInterface(); Dav = MCC_Setup.DavRun()
@@ -18,6 +23,28 @@ def rigConfig():
     
     # Function to allow flexible inputs for True in user-supplied strings
     isTrue = lambda x: str(str(x).lower() in {'1', 'true', 't'})
+
+    def update_line_in_file(file_path, keyword, new_value):
+        # Read all lines from the file
+        with open(file_path, 'r') as file:
+            lines = file.readlines()
+        
+        # Find and update the target line
+        updated = False
+        for i, line in enumerate(lines):
+            if keyword in line:
+                lines[i] = f"{new_value}\n"  # Update the line with the new value
+                updated = True
+                break  # Stop after finding the first match
+
+        # Write the updated lines back to the file
+        if updated:
+            with open(file_path, 'w') as file:
+                file.writelines(lines)
+            print(f"Updated `{keyword}` in {file_path}")
+        else:
+            print(f"Keyword `{keyword}` not found in {file_path}.")
+
     
     # Calibration Gui functions
     # Function to update sensor values
@@ -60,13 +87,29 @@ def rigConfig():
         outtableRunSteps = f"tableRunSteps = {tableRunSteps}\n"
         outtableDir = f"tableDir = {tableDir}\n"
         outtableSpeed = f"tableSpeed = {tableSpeed}"
-        
-        outLines = (outHeader + outboardNum + outshutterInitSteps + outshutterRunSteps + outshutterDir + outshutterSpeed +
-                    outtableInitSteps + outtableRunSteps + outtableDir + outtableSpeed)
-    
-        with open(Dav.params_path, 'w') as outputFile:
-            outputFile.write(outLines)
-            print(f'Params saved as {Dav.params_path}')
+
+        outshutterInitSteps = ["shutterInitSteps", f'shutterInitSteps = {shutterInitSteps} #The number of steps from the mag sensor to the "closed" position']
+        outshutterRunSteps = ["shutterRunSteps", f'shutterRunSteps = {shutterRunSteps} #The number of steps to open/close the shutter']
+        outshutterDir = ["shutterDir", f'shutterDir = {shutterDir} #The base direction of the shutter']
+        outshutterSpeed = ["shutterSpeed", f'shutterSpeed = {shutterSpeed} #Delay between steps when driving shutter']
+        outtableInitSteps = ["tableInitSteps", f'tableInitSteps = {tableInitSteps} #The number of steps from the mag sensor to the home position']
+        outtableRunSteps = ["tableRunSteps", f'tableRunSteps = {tableRunSteps} #The number of steps between bottle positions']
+        outtableDir = ["tableDir", f'tableDir = {tableDir} #The base direction of the table']
+        outtableSpeed = ["tableSpeed", f'tableSpeed = {tableSpeed} #Delay between steps when driving table']
+
+        #outLines = (outHeader + outboardNum + outshutterInitSteps + outshutterRunSteps + outshutterDir + outshutterSpeed +
+        #            outtableInitSteps + outtableRunSteps + outtableDir + outtableSpeed)
+
+        outputData = [outshutterInitSteps,outshutterRunSteps,outshutterDir,outshutterSpeed,
+                      outtableInitSteps,outtableRunSteps,outtableDir,outtableSpeed]
+        #Write Updated Values
+        for outN in outputData:
+            update_line_in_file(file_path = rigParamsFile, keyword=outN[0], new_value=outN[1])
+            #rigParams[outN[0]] = eval(outN[0])
+
+        #with open(Dav.params_path, 'w') as outputFile:
+        #    outputFile.write(outLines)
+        #    print(f'Params saved as {Dav.params_path}')
     
     
     #%% Code execution
