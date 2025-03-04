@@ -337,8 +337,9 @@ def readParameters(paramsFile):
             useCamera = False
         try:
             useLaser = [line[1].split(',') for line in paramsData if 'UseLaser' in line[0]][0]
+            useLaser = [str(trialN) for trialN in useLaser]
         except:
-            useLaser = [False]
+            useLaser = ['False']
         
         tastes = [stimN for stimN in Solutions if len(stimN) > 0]
         concs = [stimN for stimN in Concentrations if len(stimN) > 0]

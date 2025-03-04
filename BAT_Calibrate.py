@@ -208,13 +208,13 @@ def homePosition():
 def movePosition(forward):
     global TablePosition
     if forward:
-        Motor.turn(stepsPerTurn, Motor.CLOCKWISE)
+        Motor.turn(stepsPerTurn, Motor.ANTICLOCKWISE)
         if TablePosition == rigParams['tableTotalPositions']:
             TablePosition = 1
         else:
             TablePosition += 1
     else:
-        Motor.turn(stepsPerTurn, Motor.ANTICLOCKWISE)
+        Motor.turn(stepsPerTurn, Motor.CLOCKWISE)
         if TablePosition == 1:
             TablePosition = rigParams['tableTotalPositions']
         else:

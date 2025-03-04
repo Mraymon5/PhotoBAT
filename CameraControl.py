@@ -5,6 +5,9 @@ import os
 import numpy as np
 import argparse
 import threading
+import subprocess
+import re
+import sys
 
 import array
 import warnings
@@ -14,15 +17,46 @@ import warnings
 #warnings.filterwarnings("ignore")
 
 #TODO : Make a capture version that has 3 call phases; phase 1 sets up the camera connection, phase 2 starts recording into a 5-sec rolling buffer, and phase 3 saves the buffer and starts recording for an additional x time
+#TODO : The find USB is linux-specific, and needs to be updated for inclusivity or manual override.
 
 #%% Capture Function with Brightness/Contrast/Gain/Exposure Sliders
+def find_usb_camera():
+    """Finds the first /dev/video* device associated with a USB camera."""
+    try:
+        result = subprocess.run(['v4l2-ctl', '--list-devices'], capture_output=True, text=True)
+        lines = result.stdout.splitlines()
+        
+        usb_device = None
+        for i, line in enumerate(lines):
+            if "USB" in line:  # Adjust this to match your device's label
+                # Look for the next lines that contain /dev/video*
+                for j in range(i + 1, len(lines)):
+                    match = re.search(r'(/dev/video\d+)', lines[j])
+                    if match:
+                        usb_device = match.group(1)
+                        break
+                break
+        
+        return usb_device if usb_device else "No USB camera found"
+    
+    except Exception as e:
+        print(f"Error detecting USB camera: {e}")
+        return None
+
 def preview(mode=None):
+    """Opens a preview window using the selected camera."""
     def print_fps(state,extra):
         fps = cap.get(cv2.CAP_PROP_FPS)
         print(f"Current FPS: {fps}")
     # Open a connection to the webcam (0 is usually the default camera)
-    cap = cv2.VideoCapture(0)
-    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+    camera_device = find_usb_camera()
+
+    if camera_device is not None:
+        print(f"Using camera: {camera_device}")
+        cap = cv2.VideoCapture(camera_device)
+        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+    else:
+        print("No suitable camera found.")
 
     if not cap.isOpened():
         print("Error: Could not open webcam.")
@@ -253,8 +287,19 @@ class TriggerCaptureFunctions():
             self.ZeroTime = time.time()
         else:
             self.ZeroTime = zeroTime
-        self.cap = cv2.VideoCapture(0)
-        self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+            
+            
+        camera_device = find_usb_camera()
+
+        if camera_device is not None:
+            print(f"Using camera: {camera_device}")
+            self.cap = cv2.VideoCapture(camera_device)
+            self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+        else:
+            print("No suitable camera found.")
+            
+        #self.cap = cv2.VideoCapture(0)
+        #self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
         self.buffer_duration = buffer_duration # Seconds for rolling buffer
 
         if not self.cap.isOpened():

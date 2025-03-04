@@ -2,9 +2,14 @@
 import time
 import tkinter as tk
 from tkinter import ttk
+import os
+import sys
 
 #%% Import Local Functions
 import MCC_Setup
+
+base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+rigParamsFile = os.path.join(base_path, 'MCC_params.txt')
 
 def rigConfig():
     MCC = MCC_Setup.MCCInterface(); Dav = MCC_Setup.DavRun()
@@ -18,24 +23,46 @@ def rigConfig():
     
     # Function to allow flexible inputs for True in user-supplied strings
     isTrue = lambda x: str(str(x).lower() in {'1', 'true', 't'})
+
+    def update_line_in_file(file_path, keyword, new_value):
+        # Read all lines from the file
+        with open(file_path, 'r') as file:
+            lines = file.readlines()
+        
+        # Find and update the target line
+        updated = False
+        for i, line in enumerate(lines):
+            if keyword in line:
+                lines[i] = f"{new_value}\n"  # Update the line with the new value
+                updated = True
+                break  # Stop after finding the first match
+
+        # Write the updated lines back to the file
+        if updated:
+            with open(file_path, 'w') as file:
+                file.writelines(lines)
+            print(f"Updated `{keyword}` in {file_path}")
+        else:
+            print(f"Keyword `{keyword}` not found in {file_path}.")
+
     
     # Calibration Gui functions
     # Function to update sensor values
-    def update_sensor_display(sensor_labels):
+    def update_sensor_display(sensorData):
         readTime = time.time()
         readSens = MCC.d_in(0, 1)
-        readDelay = f"Read Delay: {round(time.time() - readTime, 4):.3f}"
-        lSens = f"Lick Sensor: {MCC.getBit(portType=1, channel=7, sensorState=readSens)}"
-        sMagSens = f"Shutter Mag: {MCC.getBit(portType=1, channel=5, sensorState=readSens)}"
-        tMagSens = f"Table Mag: {MCC.getBit(portType=1, channel=4, sensorState=readSens)}"
+        readDelay = f"{round(time.time() - readTime, 4):.3f}"
+        lSens = f"{MCC.getBit(portType=1, channel=7, sensorState=readSens)}"
+        sMagSens = f"{MCC.getBit(portType=1, channel=5, sensorState=readSens)}"
+        tMagSens = f"{MCC.getBit(portType=1, channel=4, sensorState=readSens)}"
         values = [lSens, sMagSens, tMagSens, readDelay]
         
         # Update each label with the corresponding sensor value
-        for label, value in zip(sensor_labels.values(), values):
+        for label, value in zip(sensorData.values(), values):
             label.config(text=value)
         
         # Schedule the function to run again after 500ms
-        calibrateGUI.after(10, update_sensor_display, sensor_labels)
+        calibrateGUI.after(10, update_sensor_display, sensorData)
     
     def update_parameters():
     # Example of retrieving values from the text boxes
@@ -50,7 +77,7 @@ def rigConfig():
         tableDir = int(tDirEnt.get()) #The base direction of the table
         tableSpeed = float(tSpdEnt.get())
         
-        outHeader = "#Davis Rig Hardware Parameters. You probably don't want to edit this manually; try MCC_Test.py instead.\n"
+        outHeader = "#Davis Rig Hardware Parameters. You probably don't want to edit this manually; try MCC_Main_Menu.py instead.\n"
         outboardNum = f"boardNum = {Dav.boardNum}\n"
         outshutterInitSteps = f"shutterInitSteps = {shutterInitSteps}\n"
         outshutterRunSteps = f"shutterRunSteps = {shutterRunSteps}\n"
@@ -60,13 +87,29 @@ def rigConfig():
         outtableRunSteps = f"tableRunSteps = {tableRunSteps}\n"
         outtableDir = f"tableDir = {tableDir}\n"
         outtableSpeed = f"tableSpeed = {tableSpeed}"
-        
-        outLines = (outHeader + outboardNum + outshutterInitSteps + outshutterRunSteps + outshutterDir + outshutterSpeed +
-                    outtableInitSteps + outtableRunSteps + outtableDir + outtableSpeed)
-    
-        with open(Dav.params_path, 'w') as outputFile:
-            outputFile.write(outLines)
-            print(f'Params saved as {Dav.params_path}')
+
+        outshutterInitSteps = ["shutterInitSteps", f'shutterInitSteps = {shutterInitSteps} #The number of steps from the mag sensor to the "closed" position']
+        outshutterRunSteps = ["shutterRunSteps", f'shutterRunSteps = {shutterRunSteps} #The number of steps to open/close the shutter']
+        outshutterDir = ["shutterDir", f'shutterDir = {shutterDir} #The base direction of the shutter']
+        outshutterSpeed = ["shutterSpeed", f'shutterSpeed = {shutterSpeed} #Delay between steps when driving shutter']
+        outtableInitSteps = ["tableInitSteps", f'tableInitSteps = {tableInitSteps} #The number of steps from the mag sensor to the home position']
+        outtableRunSteps = ["tableRunSteps", f'tableRunSteps = {tableRunSteps} #The number of steps between bottle positions']
+        outtableDir = ["tableDir", f'tableDir = {tableDir} #The base direction of the table']
+        outtableSpeed = ["tableSpeed", f'tableSpeed = {tableSpeed} #Delay between steps when driving table']
+
+        #outLines = (outHeader + outboardNum + outshutterInitSteps + outshutterRunSteps + outshutterDir + outshutterSpeed +
+        #            outtableInitSteps + outtableRunSteps + outtableDir + outtableSpeed)
+
+        outputData = [outshutterInitSteps,outshutterRunSteps,outshutterDir,outshutterSpeed,
+                      outtableInitSteps,outtableRunSteps,outtableDir,outtableSpeed]
+        #Write Updated Values
+        for outN in outputData:
+            update_line_in_file(file_path = rigParamsFile, keyword=outN[0], new_value=outN[1])
+            #rigParams[outN[0]] = eval(outN[0])
+
+        #with open(Dav.params_path, 'w') as outputFile:
+        #    outputFile.write(outLines)
+        #    print(f'Params saved as {Dav.params_path}')
     
     
     #%% Code execution
@@ -93,25 +136,26 @@ def rigConfig():
         calibrateGUI.title("Motor and Sensor Calibration")
         calibrateGUI.protocol("WM_DELETE_WINDOW", on_close)
         
+        boxPadX = 0
         # Shutter control section
         shutterFrame = ttk.LabelFrame(calibrateGUI, text="Shutter Control")
-        shutterFrame.grid(row=0, column=0, padx=10, pady=10)
+        shutterFrame.grid(row=0, column=0, padx=10, pady=10, sticky='nwe')
         
-        tk.Label(shutterFrame, text="Shutter Initial Steps:").grid(row=0, column=0, padx=10, pady=5)
+        tk.Label(shutterFrame, text="Shutter Initial Steps:").grid(row=0, column=0, padx=10, pady=5, sticky='ne')
         sInitEnt = tk.Entry(shutterFrame, textvariable=tk.IntVar(value=Dav.shutterInitSteps))
-        sInitEnt.grid(row=0, column=1, padx=10, pady=5)
+        sInitEnt.grid(row=0, column=1, padx=boxPadX, pady=5)
         
-        tk.Label(shutterFrame, text="Shutter Run Steps:").grid(row=1, column=0, padx=10, pady=5)
+        tk.Label(shutterFrame, text="Shutter Run Steps:").grid(row=1, column=0, padx=10, pady=5, sticky='ne')
         sRunEnt = tk.Entry(shutterFrame, textvariable=tk.IntVar(value=Dav.shutterRunSteps))
-        sRunEnt.grid(row=1, column=1, padx=10, pady=5)
+        sRunEnt.grid(row=1, column=1, padx=boxPadX, pady=5)
         
-        tk.Label(shutterFrame, text="Shutter Direction:").grid(row=2, column=0, padx=10, pady=5)
+        tk.Label(shutterFrame, text="Shutter Direction:").grid(row=2, column=0, padx=10, pady=5, sticky='ne')
         sDirEnt = tk.Entry(shutterFrame, textvariable=tk.IntVar(value=Dav.shutterDir))
-        sDirEnt.grid(row=2, column=1, padx=10, pady=5)
+        sDirEnt.grid(row=2, column=1, padx=boxPadX, pady=5)
         
-        tk.Label(shutterFrame, text="Shutter Step Delay:").grid(row=3, column=0, padx=10, pady=5)
+        tk.Label(shutterFrame, text="Shutter Step Delay:").grid(row=3, column=0, padx=10, pady=5, sticky='ne')
         sSpdEnt = tk.Entry(shutterFrame, textvariable=tk.DoubleVar(value=Dav.shutterSpeed))
-        sSpdEnt.grid(row=3, column=1, padx=10, pady=5)
+        sSpdEnt.grid(row=3, column=1, padx=boxPadX, pady=5)
         # Create buttons
         tk.Button(shutterFrame, text="Init", command=lambda: Dav.moveShutter(Init = True)).grid(row=4, column=0, padx=10, pady=10)
         tk.Button(shutterFrame, text="Open", command=lambda: Dav.moveShutter(Open = True)).grid(row=4, column=1, padx=10, pady=10)
@@ -120,48 +164,53 @@ def rigConfig():
         
         # Table control section
         tableFrame = ttk.LabelFrame(calibrateGUI, text="Table Control")
-        tableFrame.grid(row=1, column=0, padx=10, pady=10)
+        tableFrame.grid(row=1, column=0, padx=10, pady=10, sticky='nwe')
     
-        tk.Label(tableFrame, text="Table Initial Steps:").grid(row=0, column=0, padx=10, pady=5)
+        tk.Label(tableFrame, text="Table Initial Steps:").grid(row=0, column=0, padx=10, pady=5, sticky='ne')
         tInitEnt = tk.Entry(tableFrame, textvariable=tk.IntVar(value=Dav.tableInitSteps))
-        tInitEnt.grid(row=0, column=1, padx=10, pady=5)
+        tInitEnt.grid(row=0, column=1, padx=boxPadX, pady=5)
         
-        tk.Label(tableFrame, text="Table Run Steps:").grid(row=1, column=0, padx=10, pady=5)
+        tk.Label(tableFrame, text="Table Run Steps:").grid(row=1, column=0, padx=10, pady=5, sticky='ne')
         tRunEnt = tk.Entry(tableFrame, textvariable=tk.IntVar(value=Dav.tableRunSteps))
-        tRunEnt.grid(row=1, column=1, padx=10, pady=5)
+        tRunEnt.grid(row=1, column=1, padx=boxPadX, pady=5)
         
-        tk.Label(tableFrame, text="Table Direction:").grid(row=2, column=0, padx=10, pady=5)
+        tk.Label(tableFrame, text="Table Direction:").grid(row=2, column=0, padx=10, pady=5, sticky='ne')
         tDirEnt = tk.Entry(tableFrame, textvariable=tk.IntVar(value=Dav.tableDir))
-        tDirEnt.grid(row=2, column=1, padx=10, pady=5)
+        tDirEnt.grid(row=2, column=1, padx=boxPadX, pady=5)
         
-        tk.Label(tableFrame, text="Table Step Delay:").grid(row=3, column=0, padx=10, pady=5)
+        tk.Label(tableFrame, text="Table Step Delay:").grid(row=3, column=0, padx=10, pady=5, sticky='ne')
         tSpdEnt = tk.Entry(tableFrame, textvariable=tk.DoubleVar(value=Dav.tableSpeed))
-        tSpdEnt.grid(row=3, column=1, padx=10, pady=5)
+        tSpdEnt.grid(row=3, column=1, padx=boxPadX, pady=5)
         # Create buttons
         tk.Button(tableFrame, text="Init", command=lambda: Dav.moveTable(Init = True)).grid(row=4, column=0, padx=10, pady=10)
         tk.Button(tableFrame, text="Next", command=lambda: Dav.moveTable(movePos = 1)).grid(row=4, column=1, padx=10, pady=10)
         tk.Button(tableFrame, text="Prev", command=lambda: Dav.moveTable(movePos = -1)).grid(row=4, column=2, padx=10, pady=10)
         
-        tk.Button(calibrateGUI, text="Update Parameters", command=update_parameters).grid(row=1, column=1, padx=10, pady=10)
+        tk.Button(calibrateGUI, text="Update Parameters", command=update_parameters).grid(row=1, column=1, padx=10, pady=10, sticky='nw')
         
         # Sensor display section
         sensor_frame = ttk.LabelFrame(calibrateGUI, text="Sensor Readouts")
-        sensor_frame.grid(row=0, column=1, padx=10, pady=10)
+        sensor_frame.grid(row=0, column=1, padx=10, pady=10, sticky='nw')
         
         # Create labels for sensors
-        sensor_labels = {
-            "Lick Sensor": ttk.Label(sensor_frame, text="Lick Sensor: ---"),
-            "Shutter Mag Sensor": ttk.Label(sensor_frame, text="Shutter Mag Sensor: ---"),
-            "Table Mag Sensor": ttk.Label(sensor_frame, text="Table Mag Sensor: ---"),
-            "Read Delay": ttk.Label(sensor_frame, text="Read Delay: ---")
+        lickLab = ttk.Label(sensor_frame, text="Lick Sensor:").grid(row=0, column=0, padx=5, pady=5, sticky='ne')
+        sMagLab = ttk.Label(sensor_frame, text="Shutter Mag Sensor:").grid(row=1, column=0, padx=5, pady=5, sticky='ne')
+        tMagLab = ttk.Label(sensor_frame, text="Table Mag Sensor:").grid(row=2, column=0, padx=5, pady=5, sticky='ne')
+        delayLab = ttk.Label(sensor_frame, text="Read Delay:").grid(row=3, column=0, padx=5, pady=5, sticky='ne')
+
+        sensorData = {
+            "Lick Sensor": ttk.Label(sensor_frame, text="---", anchor='e',width=6, borderwidth=1, relief="solid"),#, background='white'
+            "Shutter Mag Sensor": ttk.Label(sensor_frame, text="---", anchor='e',width=6, borderwidth=1, relief="solid"),#, background='white'
+            "Table Mag Sensor": ttk.Label(sensor_frame, text="---", anchor='e',width=6, borderwidth=1, relief="solid"),#, background='white'
+            "Read Delay": ttk.Label(sensor_frame, text="---", anchor='e',width=6, borderwidth=1, relief="solid")#, background='white'
         }
         
         # Place each label in the grid
-        for i, (sensor_name, label) in enumerate(sensor_labels.items()):
-            label.grid(row=i, column=0, padx=5, pady=5)
+        for i, (sensor_name, label) in enumerate(sensorData.items()):
+            label.grid(row=i, column=1, padx=5, pady=5,sticky='nw')
         
         # Start updating the sensor display
-        update_sensor_display(sensor_labels)
+        update_sensor_display(sensorData)
 
         calibrateGUI.mainloop()
     finally:
