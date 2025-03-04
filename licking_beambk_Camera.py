@@ -25,7 +25,6 @@ from subprocess import Popen, PIPE
 from pathlib import Path
 
 #%% Local pi functions
-import CameraControl
 import rig_funcs as rig
 try:
     import RPi.GPIO as GPIO
@@ -383,6 +382,7 @@ rig.configureIOPins()
 if hallPin > 0: rig.align_zero(he_inport=rigParams['hallPin'], adjust_steps=rigParams['tableInitSteps'][stepMode])
 # Setup Camera: test settings with CamerControl.preview
 if useCamera == 'True':
+    import CameraControl
     #CameraControl.preview(mode=2)
     camMode = 2
     exposure = 63
