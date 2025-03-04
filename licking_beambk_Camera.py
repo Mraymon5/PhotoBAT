@@ -539,8 +539,8 @@ def runSession():
                                 rig.timerQueue.put(trial_init_time+trialTimeLimit) #push the timeout time to GUI
                             else:
                                 rig.timerQueue.put(trial_init_time) #push the timeout time to GUI
-                            camTimeLimit = LickTime[trialN] if LickTime[trialN] is not None else 20 #If a lick happens, reset the trial time limit to maximal lick time
-                            if useCamera == 'True': camera.saveBufferAndCapture(duration=min(20,camTimeLimit), title=f'{subjID}_trial{trialN}', outputFolder=dat_folder, start_time = trial_init_time) #Camera recording period capped to 20sec
+                            camTimeLimit = LickTime[trialN] if LickTime[trialN] is not None else 10 #If a lick happens, reset the trial time limit to maximal lick time
+                            if useCamera == 'True': camera.saveBufferAndCapture(duration=min(10,camTimeLimit), title=f'{subjID}_trial{trialN}', outputFolder=dat_folder, start_time = trial_init_time) #Camera recording period capped to 20sec
                             if useLaser[trialN] == 'Lick':
                                 laserTimeLimit = [LickTime[trialN] if LickTime[trialN] is not None else 5][0]
                                 print(f'laser pin: {laserPin}, duration: {laserTimeLimit}')
@@ -679,12 +679,14 @@ def runSession():
             print("Total number of licks on {}: {}".format(spout, len(tot_licks)))
                 
         rig.AbortEvent.set() #Tell the GUI to close
+        print("checkpoint A")
         if not cleanRun:
             easygui.msgbox(msg="Session was interrupted: Check terminal for errors", title="Session Interrupted")
         else:
             easygui.msgbox(msg="Remove rat from the box to its home cage", title="Session Finished")
+        print("checkpoint B")
 
 #%%
-sessionThread = threading.Thread(target=runSession,daemon=True)
+sessionThread = threading.Thread(target=runSession,daemon=False)
 sessionThread.start()
 rig.TrialGui(paramsFile, outputFile, subjID)
