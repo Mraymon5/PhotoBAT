@@ -381,6 +381,7 @@ if useCamera == 'True':
 shutterThread = None #Add this so that the thread can be resolved before shutterThread is instanced
 rig.AbortEvent.set() #Set the abort event, which will be turned off to start the session
 rig.TrialEvent.set() #Set the trial event, which will be turned off to start the session
+rig.cleanRun.clear()
 
 def runSession():
     #Final Check
@@ -398,7 +399,6 @@ def runSession():
     #if useLED == 'True' or useLED == 'Cue': led.white_on()
     
     #%% Open the trial loop
-    cleanRun = False
     curPos = 1 # Initial position of table should be 1
     try:
         for trialN, spoutN in enumerate(TubeSeq): #trialN was index, spoutN was trial #spoutN = 2; trialN = 1
@@ -557,11 +557,11 @@ def runSession():
             print('\n=====  Inter-Trial Interval =====\n')
         
         #Note a clean run
-        cleanRun = True
+        rig.cleanRun.set()
         
     #%% Ending the session
     finally:
-        if not cleanRun:
+        if not rig.cleanRun.is_set():
             print("Session interrupted")
     
         if shutterThread and shutterThread.is_alive():
@@ -585,16 +585,15 @@ def runSession():
             num_licks_trial = [len(i) if i is not None else None for i in licks[spout]]
             print(spout, num_licks_trial)
             
-            tot_licks = np.concatenate(licks[spout])
-            print("Total number of licks on {}: {}".format(spout, len(tot_licks)))
+            if licks[spout]:  # Check if list is non-empty
+                tot_licks = np.concatenate(licks[spout])
+                print("Total number of licks on {}: {}".format(spout, len(tot_licks)))
+            else:
+                print("No licks recorded for {}.".format(spout))                
         
         rig.AbortEvent.set() #Tell the GUI to close
-        if not cleanRun:
-            easygui.msgbox(msg="Session was interrupted: Check terminal for errors", title="Session Interrupted")
-        else:
-            easygui.msgbox(msg="Remove rat from the box to its home cage", title="Session Finished")
 
 #%%
-sessionThread = threading.Thread(target=runSession,daemon=True)
+sessionThread = threading.Thread(target=runSession,daemon=False)
 sessionThread.start()
 rig.TrialGui(paramsFile, outputFile, subjID)

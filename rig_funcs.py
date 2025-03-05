@@ -148,10 +148,18 @@ def align_zero(step=stepPin, direction=directionPin,enable=enablePin,ms1=ms1Pin,
         print("Hall sensor read as 'off' through a full rotation, check hardware")
         return        
     
+        
+    
     if rotate == 'clockwise':
-        motora.turn(adjust_steps, Motor.CLOCKWISE)
+        if adjust_steps<0:
+            motora.turn(abs(adjust_steps), Motor.ANTICLOCKWISE)
+        else:
+            motora.turn(abs(adjust_steps), Motor.CLOCKWISE)
     elif rotate == 'anticlockwise':
-        motora.turn(adjust_steps, Motor.ANTICLOCKWISE)
+        if adjust_steps<0:
+            motora.turn(abs(adjust_steps), Motor.CLOCKWISE)
+        else:
+            motora.turn(abs(adjust_steps), Motor.ANTICLOCKWISE)
 
     print('Aligned to initial position')
 
@@ -237,6 +245,8 @@ def fireLaser(laserPin,duration):
 #%% Functions for running the Session Gui    
 AbortEvent = threading.Event()
 TrialEvent = threading.Event()
+cleanRun = threading.Event()
+
 lickQueue = queue.Queue()
 timerQueue = queue.Queue()
 trialQueue = queue.Queue()
@@ -266,6 +276,11 @@ def TrialGui(paramsFile, outputFile, subjID):
         if abortSession:
             AbortEvent.set()
             sessionGUI.destroy()  # Destroy the Toplevel window
+            if not cleanRun.is_set():
+                easygui.msgbox(msg="Session was interrupted: Check terminal for errors", title="Session Interrupted")
+            else:
+                easygui.msgbox(msg="Remove rat from the box to its home cage", title="Session Finished")
+
             if not isChild: trialRoot.destroy()    # Destroy the hidden root window
         else:
             pass
