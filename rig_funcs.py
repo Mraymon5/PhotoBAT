@@ -148,10 +148,18 @@ def align_zero(step=stepPin, direction=directionPin,enable=enablePin,ms1=ms1Pin,
         print("Hall sensor read as 'off' through a full rotation, check hardware")
         return        
     
+        
+    
     if rotate == 'clockwise':
-        motora.turn(adjust_steps, Motor.CLOCKWISE)
+        if adjust_steps<0:
+            motora.turn(abs(adjust_steps), Motor.ANTICLOCKWISE)
+        else:
+            motora.turn(abs(adjust_steps), Motor.CLOCKWISE)
     elif rotate == 'anticlockwise':
-        motora.turn(adjust_steps, Motor.ANTICLOCKWISE)
+        if adjust_steps<0:
+            motora.turn(abs(adjust_steps), Motor.CLOCKWISE)
+        else:
+            motora.turn(abs(adjust_steps), Motor.ANTICLOCKWISE)
 
     print('Aligned to initial position')
 
