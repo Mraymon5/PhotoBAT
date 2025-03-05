@@ -395,6 +395,7 @@ if useCamera == 'True':
 #Final Check
 rig.AbortEvent.set() #Set the abort event, which will be turned off to start the session
 rig.TrialEvent.set() #Set the trial event, which will be turned off to start the session
+rig.cleanRun.clear()
 #guiThread = threading.Thread(target=rig.TrialGui, kwargs={'paramsFile':paramsFile, 'outputFile':outputFile, 'subjID':subjID}, daemon=True)
 #guiThread.start()
 def runSession():
@@ -413,7 +414,6 @@ def runSession():
     if useLED == 'True' or useLED == 'Cue': led.white_on()
     
     #%% Open the trial loop
-    cleanRun = False
     cur_pos = 1     # Initial position of table should be 1
     dest_pos = TubeSeq[0] #Set initial destination
     try:
@@ -636,11 +636,11 @@ def runSession():
             print('\n=====  Inter-Trial Interval =====\n')
         
         #Note a clean run
-        cleanRun = True
+        rig.cleanRun.set()
         
     #%% Ending the session
     finally:
-        if not cleanRun:
+        if not rig.cleanRun.is_set():
             print("Session interrupted")
             
         # turn off LEDs and Intan outs
@@ -675,16 +675,13 @@ def runSession():
             num_licks_trial = [len(i) if i is not None else None for i in licks[spout]]
             print(spout, num_licks_trial)
             
-            tot_licks = np.concatenate(licks[spout])
-            print("Total number of licks on {}: {}".format(spout, len(tot_licks)))
+            if licks[spout]:  # Check if list is non-empty
+                tot_licks = np.concatenate(licks[spout])
+                print("Total number of licks on {}: {}".format(spout, len(tot_licks)))
+            else:
+                print("No licks recorded for {}.".format(spout))                
                 
         rig.AbortEvent.set() #Tell the GUI to close
-        print("checkpoint A")
-        if not cleanRun:
-            easygui.msgbox(msg="Session was interrupted: Check terminal for errors", title="Session Interrupted")
-        else:
-            easygui.msgbox(msg="Remove rat from the box to its home cage", title="Session Finished")
-        print("checkpoint B")
 
 #%%
 sessionThread = threading.Thread(target=runSession,daemon=False)
