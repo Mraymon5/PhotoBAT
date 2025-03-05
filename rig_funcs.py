@@ -245,6 +245,8 @@ def fireLaser(laserPin,duration):
 #%% Functions for running the Session Gui    
 AbortEvent = threading.Event()
 TrialEvent = threading.Event()
+cleanRun = threading.Event()
+
 lickQueue = queue.Queue()
 timerQueue = queue.Queue()
 trialQueue = queue.Queue()
@@ -274,6 +276,11 @@ def TrialGui(paramsFile, outputFile, subjID):
         if abortSession:
             AbortEvent.set()
             sessionGUI.destroy()  # Destroy the Toplevel window
+            if not cleanRun.is_set():
+                easygui.msgbox(msg="Session was interrupted: Check terminal for errors", title="Session Interrupted")
+            else:
+                easygui.msgbox(msg="Remove rat from the box to its home cage", title="Session Finished")
+
             if not isChild: trialRoot.destroy()    # Destroy the hidden root window
         else:
             pass
