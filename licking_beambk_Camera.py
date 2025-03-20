@@ -434,6 +434,26 @@ def runSession():
                     raise KeyboardInterrupt()
                 time.sleep(0.001)
                 
+            # create Motor instance
+            motora = Motor(stepPin, directionPin, enablePin, ms1Pin, ms2Pin, ms3Pin)
+            motora.init()
+            revolution = motora.setStepSize(stepMode)
+            
+            # using rotate_dir function to get the move of the motor
+            turn_dir, n_shift = rotate_dir(cur_pos, dest_pos, tot_pos = tot_pos)
+
+            
+            #Start the camera
+            if useCamera == 'True': camera.startBuffer()
+
+            # rotate motor to move spout outside licking hole
+            direction = Motor.CLOCKWISE if turn_dir == -1 else Motor.ANTICLOCKWISE
+            motorThread = threading.Thread(target=lambda: motora.turn(n_shift * (revolution / tot_pos), direction))
+            motorThread.start()
+                
+            #Update motor position
+            cur_pos = dest_pos
+
             # turn on nose poke LED cue and send signal to intan
             if useLED == 'Cue':
                 # turn_off house white led light
@@ -462,25 +482,8 @@ def runSession():
             # get the number of current trial for that particular spout
             this_trial_num = len(licks[this_spout]) - 1 
             
-            # using rotate_dir function to get the move of the motor
-            turn_dir, n_shift = rotate_dir(cur_pos, dest_pos, tot_pos = tot_pos)
-        
-            # create Motor instance
-            motora = Motor(stepPin, directionPin, enablePin, ms1Pin, ms2Pin, ms3Pin)
-            motora.init()
-            revolution = motora.setStepSize(stepMode)
-            
             # start nose poke detection
             NP_process = Popen(['python', 'nose_poking.py', subjID, f'{trialN}'], shell=False)
-        
-            # rotate motor to move spout outside licking hole
-            if turn_dir == -1: # turn clockwise
-                motora.turn(n_shift * (revolution/tot_pos), Motor.CLOCKWISE)
-            else:
-                motora.turn(n_shift * (revolution/tot_pos), Motor.ANTICLOCKWISE)
-                
-            #Update motor position
-            cur_pos = dest_pos
         
             # detecting the current status of touch sensor
             if lickMode == 'cap':
@@ -504,9 +507,6 @@ def runSession():
             rig.lickQueue.put(len(licks[this_spout][this_trial_num])) #push lick count to gui
             rig.timerQueue.put(trial_start_time+trialTimeLimit) #push the timeout time to GUI
             rig.TrialEvent.set() #Let gui know a trial has started
-    
-            #Start the camera
-            if useCamera == 'True': camera.startBuffer()
     
             while ((time.time() - trial_init_time < trialTimeLimit) if trialTimeLimit is not None else True) and \
                   (time.time() - exp_init_time < SessionTimeLimit) and \
