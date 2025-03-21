@@ -52,11 +52,30 @@ else
     exit 1
 fi
 
+# Install python packages
 pip install numpy
-pip install board
 pip install easygui
 pip install RPI.GPIO
 pip3 install adafruit-circuitpython-mpr121
+pip install adafruit-blinka
 pip install opencv-python
 pip install tkintertable
 pip install pandas
+
+# Copy master params files to the main directory
+# Get the directory where MCC_install.sh is located
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+# Define source and destination
+SOURCE_DIR="$SCRIPT_DIR/ParamsMaster"
+DEST_DIR="$SCRIPT_DIR"
+
+# Copy param files ONLY if they don't already exist
+for file in MCC_params.txt BAT_params.txt; do
+    if [ ! -f "$DEST_DIR/$file" ]; then
+        echo "Copying $file to $DEST_DIR"
+        cp "$SOURCE_DIR/$file" "$DEST_DIR/$file"
+    else
+        echo "$file already exists in $DEST_DIR, skipping copy."
+    fi
+done
