@@ -407,6 +407,11 @@ def runSession():
         rest_pos = dest_pos - rest_dir
         rest_pos = rest_pos if rest_pos <= tot_pos else rest_pos - tot_pos
         
+        # create Motor instance
+        motora = Motor(stepPin, directionPin, enablePin, ms1Pin, ms2Pin, ms3Pin)
+        motora.init()
+        revolution = motora.setStepSize(stepMode)
+
         # rotate to rest position
         turn_dir, n_shift = rotate_dir(cur_pos, rest_pos, tot_pos = tot_pos)
         if turn_dir == -1: # turn clockwise
@@ -468,6 +473,10 @@ def runSession():
             #Update motor position
             cur_pos = dest_pos
 
+            # on-screen reminder
+            print("\n")
+            print("Trial {}_spout{} in Progress. Max lick time = {}, Max lick count = {}, Laser Mode = {}".format(trialN, spoutN, LickTime[trialN], LickCount[trialN], useLaser[trialN]))
+
             # turn on nose poke LED cue and send signal to intan
             if useLED == 'Cue':
                 # turn_off house white led light
@@ -485,11 +494,7 @@ def runSession():
                 laserThread.start()
             GPIO.output(cueIntanIn,GPIO.HIGH) #Set cue Intan in High
             GPIO.output(spoutsIntanIn[taste_idx],GPIO.HIGH) #Set the correct spout Intan in High
-            
-            # on-screen reminder
-            print("\n")
-            print("Trial {}_spout{} in Progress. Max lick time = {}, Max lick count = {}".format(trialN, spoutN, LickTime[trialN], LickCount[trialN]))
-            
+                        
             # empty list to save licks for each trial
             this_spout = 'Position {}'.format(spoutN)
             licks[this_spout].append([])
@@ -545,6 +550,7 @@ def runSession():
     
                     if beam_unbroken - beam_break > 0.02: # to avoid noise (from motor)- induced licks
                         licks[this_spout][this_trial_num].append(round((beam_break-last_break)*1000))
+                        print('Beam Broken! -- Lick_{}'.format(len(licks[this_spout][-1])))
                         rig.lickQueue.put(len(licks[this_spout][this_trial_num])) #Send new lick to GUI
                         if len(licks[this_spout][this_trial_num]) == 1: #If this is the first lick:
                             trial_init_time = beam_break #if lick happens, reset the trial_init time
@@ -561,7 +567,6 @@ def runSession():
                                 laserThread = threading.Thread(target=rig.fireLaser, kwargs={'laserPin':laserPin, 'duration':laserTimeLimit})
                                 laserThread.start()
                         last_break = beam_break
-                        print('Beam Broken! -- Lick_{}'.format(len(licks[this_spout][-1])))
         
                 # Update last state and wait a short period before repeating.
                 last_poke = current_poke
