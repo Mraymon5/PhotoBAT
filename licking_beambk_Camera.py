@@ -399,24 +399,38 @@ rig.cleanRun.clear()
 #guiThread = threading.Thread(target=rig.TrialGui, kwargs={'paramsFile':paramsFile, 'outputFile':outputFile, 'subjID':subjID}, daemon=True)
 #guiThread.start()
 def runSession():
-    #input('===  Please press ENTER to start the experiment ===')
-    print('\n=== Press Ctrl-C to abort session ===\n')
-    while rig.AbortEvent.is_set():
-        try:
-            time.sleep(0.001)
-        except:
-            rig.AbortEvent.clear()
-    # save trial start time
-    exp_init_time = time.time()
-    startIPI = exp_init_time
-    
-    # Turn on white LED to set up the start of experiment
-    if useLED == 'True' or useLED == 'Cue': led.white_on()
-    
-    #%% Open the trial loop
-    cur_pos = 1     # Initial position of table should be 1
-    dest_pos = TubeSeq[0] #Set initial destination
     try:
+        # find a rest position adjacent to first spout
+        cur_pos = 1
+        dest_pos = TubeSeq[0]
+        rest_dir, _ = rotate_dir(cur_pos, dest_pos, tot_pos = tot_pos)
+        rest_pos = dest_pos - rest_dir
+        rest_pos = rest_pos if rest_pos <= tot_pos else rest_pos - tot_pos
+        
+        # rotate to rest position
+        turn_dir, n_shift = rotate_dir(cur_pos, rest_pos, tot_pos = tot_pos)
+        if turn_dir == -1: # turn clockwise
+            motora.turn(n_shift * (revolution/tot_pos), Motor.CLOCKWISE)
+        else:
+            motora.turn(n_shift * (revolution/tot_pos), Motor.ANTICLOCKWISE)
+        
+        # update cur_pos
+        cur_pos = rest_pos
+
+        print('\n=== Press Ctrl-C to abort session ===\n')
+        while rig.AbortEvent.is_set():
+            try:
+                time.sleep(0.001)
+            except:
+                rig.AbortEvent.clear()
+        # save trial start time
+        exp_init_time = time.time()
+        startIPI = exp_init_time
+        
+        # Turn on white LED to set up the start of experiment
+        if useLED == 'True' or useLED == 'Cue': led.white_on()
+        
+        #%% Open the trial loop
         for trialN, spoutN in enumerate(TubeSeq): #trialN was index, spoutN was trial #spoutN = 2; trialN = 1
             #Set index for identifying stimuli
             taste_idx = int((spoutN - 2) / 2)
@@ -560,26 +574,23 @@ def runSession():
             startIPI = time.time()
             
             # find rest_direction
-            cur_pos = TubeSeq[trialN]
             if trialN < len(TubeSeq) - 1:
-                rest_dir, _ = rotate_dir(cur_pos, TubeSeq[trialN+1], tot_pos = tot_pos)
+                dest_pos = TubeSeq[trialN+1]
+                rest_dir, _ = rotate_dir(cur_pos, dest_pos, tot_pos = tot_pos)
+                rest_pos = dest_pos - rest_dir
+                rest_pos = rest_pos if rest_pos<=tot_pos else rest_pos-tot_pos
             else:
-                rest_dir = -1
-            dest_pos = cur_pos + rest_dir
-            dest_pos = dest_pos if dest_pos<=tot_pos else dest_pos-tot_pos
+                rest_pos = 1
             
             # rotate to rest position
-            turn_dir, n_shift = rotate_dir(cur_pos, dest_pos, tot_pos = tot_pos)
+            turn_dir, n_shift = rotate_dir(cur_pos, rest_pos, tot_pos = tot_pos)
             if turn_dir == -1: # turn clockwise
                 motora.turn(n_shift * (revolution/tot_pos), Motor.CLOCKWISE)
             else:
                 motora.turn(n_shift * (revolution/tot_pos), Motor.ANTICLOCKWISE)
         
-            # setup cur_post and dest_pos for next trial, or just update cur_pos if the session is over
-            if trialN < len(TubeSeq) - 1:
-                cur_pos, dest_pos = dest_pos, TubeSeq[trialN+1]
-            else:
-                cur_pos = dest_pos
+            # update cur_pos
+            cur_pos = rest_pos
             
             # Reset the motor otherwise it will become hot
             motora.reset()
