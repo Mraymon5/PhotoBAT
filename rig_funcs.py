@@ -237,10 +237,12 @@ def fireLaser(laserPin,duration):
     try:
         laserOnTime = time.time()
         GPIO.output(laserPin,GPIO.HIGH)
+        print("Laser On")
         while (time.time()-laserOnTime < duration):
             time.sleep(1e-3)
     finally:
         GPIO.output(laserPin,GPIO.LOW)
+        print("Laser Off")
 
 #%% Functions for running the Session Gui    
 AbortEvent = threading.Event()
