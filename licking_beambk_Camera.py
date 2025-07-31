@@ -390,6 +390,14 @@ if useCamera == 'True':
     buffer_duration = 2
     camera = CameraControl.TriggerCaptureFunctions()
     camera.setupCapture(mode = camMode, autoExposure = False, exposure = exposure, gain = gain, buffer_duration = buffer_duration, zeroTime = zeroTime, verbose=True)
+if useCamera == 'Full':
+    import CameraControl
+    exposure = 63
+    gain = 99
+    camera = CameraControl.LongCapture(outputDir=dat_folder, exposure=exposure, gain=gain)
+    camera.setupRecording(trial_index=0,verbose=True)
+    
+    
     
 #%% Finish initializing the session
 #Final Check
@@ -464,6 +472,7 @@ def runSession():
             
             #Start the camera
             if useCamera == 'True': camera.startBuffer()
+            if useCamera == 'Full': camera.startTrialRecording()
 
             # rotate motor to move spout outside licking hole
             direction = Motor.CLOCKWISE if turn_dir == -1 else Motor.ANTICLOCKWISE
@@ -561,6 +570,7 @@ def runSession():
                                 rig.timerQueue.put(trial_init_time) #push the timeout time to GUI
                             camTimeLimit = LickTime[trialN] if LickTime[trialN] is not None else 10 #If a lick happens, reset the trial time limit to maximal lick time
                             if useCamera == 'True': camera.saveBufferAndCapture(duration=min(10,camTimeLimit), title=f'{subjID}_trial{trialN}', outputFolder=dat_folder, start_time = trial_init_time) #Camera recording period capped to 20sec
+                            if useCamera == 'Full': pass
                             if useLaser[trialN] == 'Lick':
                                 laserTimeLimit = [LickTime[trialN] if LickTime[trialN] is not None else 5][0]
                                 print(f'laser pin: {laserPin}, duration: {laserTimeLimit}')
@@ -623,6 +633,13 @@ def runSession():
             if useCamera == 'True':
                 camera.cleanup()
                 camera.setupCapture(mode = camMode, autoExposure = False, exposure = exposure, gain = gain, buffer_duration = buffer_duration)
+            if useCamera == 'Full':
+                if len(licks[this_spout][this_trial_num]) >= 1:
+                    lick_time = trial_init_time
+                else:
+                    lick_time = None
+                camera.stopTrialRecording(lick_time=lick_time)
+                camera.setupRecording(trial_index=trialN+1, verbose= False)
                 
             #Write the outputs
             #Save Trial Start time
@@ -685,6 +702,7 @@ def runSession():
     
         #Shut down camera
         if useCamera == 'True': camera.cleanup()
+        if useCamera == 'Full': camera.cleanup()
         
         #print(licks)
         for spout in spout_locs:
