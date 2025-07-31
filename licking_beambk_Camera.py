@@ -274,8 +274,8 @@ else:
     SessionTimeLimit = exp_dur
     
 # Adjust to flexible inputs for LED and Camera
-useLED = isTrue(useLED)
-useCamera = isTrue(useCamera)
+if isTrue(useLED) == "True": useLED = 'True'
+if isTrue(useCamera)  == "True": useCamera = 'True'
 
 # Make empty list to save lick data
 spout_locs = ['Position {}'.format(i) for i in taste_positions]
@@ -570,7 +570,6 @@ def runSession():
                                 rig.timerQueue.put(trial_init_time) #push the timeout time to GUI
                             camTimeLimit = LickTime[trialN] if LickTime[trialN] is not None else 10 #If a lick happens, reset the trial time limit to maximal lick time
                             if useCamera == 'True': camera.saveBufferAndCapture(duration=min(10,camTimeLimit), title=f'{subjID}_trial{trialN}', outputFolder=dat_folder, start_time = trial_init_time) #Camera recording period capped to 20sec
-                            if useCamera == 'Full': pass
                             if useLaser[trialN] == 'Lick':
                                 laserTimeLimit = [LickTime[trialN] if LickTime[trialN] is not None else 5][0]
                                 print(f'laser pin: {laserPin}, duration: {laserTimeLimit}')
