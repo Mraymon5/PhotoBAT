@@ -68,7 +68,7 @@ class LongCapture(threading.Thread):
         self.captureThread = None
         self.stop_flag = threading.Event()
 
-    def setupRecording(self, trial_index, verbose = False):
+    def setupRecording(self, title = "Output", verbose = False):
         self.timestamps = []
         self.video_writer = None
         self.out_filename = None
@@ -108,7 +108,7 @@ class LongCapture(threading.Thread):
             print(f'Camera: Auto Exposure is: {getAutoExp}, Exposure is {getExp}')
         print('Camera: Setup Complete')
 
-        self.filename_base = f'{self.outputDir}/{trial_index:03d}'
+        self.filename_base = f'{self.outputDir}/{title}'
         self.video_filename = getUniqueFilename(base_path = self.filename_base, ext=".avi")
         self.timestamp_file = getUniqueFilename(base_path = f"{self.filename_base}TimeStamps", ext=".csv")
         self.writer = cv2.VideoWriter(self.video_filename, self.codec, self.fps, self.resolution)
@@ -470,4 +470,3 @@ if 0:
     capture.fastCapture(title="testA", duration = 5)
     capture.fastCapture(title="testB", duration = 10)
     capture.cleanup()
-
