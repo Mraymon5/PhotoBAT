@@ -392,10 +392,11 @@ if useCamera == 'True':
     camera.setupCapture(mode = camMode, autoExposure = False, exposure = exposure, gain = gain, buffer_duration = buffer_duration, zeroTime = zeroTime, verbose=True)
 if useCamera == 'Full':
     import CameraControl
-    exposure = 63
+    exposure = 31
     gain = 99
     camera = CameraControl.LongCapture(outputDir=dat_folder, exposure=exposure, gain=gain)
-    camera.setupRecording(trial_index=0,verbose=True)
+    camera.setupRecording(title=f'{subjID}_trial{0}', verbose= True)
+
     
     
     
@@ -638,7 +639,7 @@ def runSession():
                 else:
                     lick_time = None
                 camera.stopTrialRecording(lick_time=lick_time)
-                camera.setupRecording(trial_index=trialN+1, verbose= False)
+                camera.setupRecording(title=f'{subjID}_trial{trialN+1}', verbose= False)
                 
             #Write the outputs
             #Save Trial Start time
