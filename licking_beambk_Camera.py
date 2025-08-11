@@ -274,8 +274,8 @@ else:
     SessionTimeLimit = exp_dur
     
 # Adjust to flexible inputs for LED and Camera
-useLED = isTrue(useLED)
-useCamera = isTrue(useCamera)
+if isTrue(useLED) == "True": useLED = 'True'
+if isTrue(useCamera)  == "True": useCamera = 'True'
 
 # Make empty list to save lick data
 spout_locs = ['Position {}'.format(i) for i in taste_positions]
@@ -390,6 +390,15 @@ if useCamera == 'True':
     buffer_duration = 2
     camera = CameraControl.TriggerCaptureFunctions()
     camera.setupCapture(mode = camMode, autoExposure = False, exposure = exposure, gain = gain, buffer_duration = buffer_duration, zeroTime = zeroTime, verbose=True)
+if useCamera == 'Full':
+    import CameraControl
+    exposure = 31
+    gain = 99
+    camera = CameraControl.LongCapture(outputDir=dat_folder, exposure=exposure, gain=gain)
+    camera.setupRecording(title=f'{subjID}_trial{0}', verbose= True)
+
+    
+    
     
 #%% Finish initializing the session
 #Final Check
@@ -464,6 +473,7 @@ def runSession():
             
             #Start the camera
             if useCamera == 'True': camera.startBuffer()
+            if useCamera == 'Full': camera.startTrialRecording()
 
             # rotate motor to move spout outside licking hole
             direction = Motor.CLOCKWISE if turn_dir == -1 else Motor.ANTICLOCKWISE
@@ -623,6 +633,13 @@ def runSession():
             if useCamera == 'True':
                 camera.cleanup()
                 camera.setupCapture(mode = camMode, autoExposure = False, exposure = exposure, gain = gain, buffer_duration = buffer_duration)
+            if useCamera == 'Full':
+                if len(licks[this_spout][this_trial_num]) >= 1:
+                    lick_time = trial_init_time
+                else:
+                    lick_time = None
+                camera.stopTrialRecording(lick_time=lick_time)
+                camera.setupRecording(title=f'{subjID}_trial{trialN+1}', verbose= False)
                 
             #Write the outputs
             #Save Trial Start time
@@ -685,6 +702,7 @@ def runSession():
     
         #Shut down camera
         if useCamera == 'True': camera.cleanup()
+        if useCamera == 'Full': camera.cleanup()
         
         #print(licks)
         for spout in spout_locs:
