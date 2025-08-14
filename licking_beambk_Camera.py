@@ -673,7 +673,7 @@ def runSession():
             outLicks = f',{",".join(map(str, trialLicks[1:]))}' if trialLicks else ''
             licks_line_str = f'{trialN + 1}{outLicks}\n'
             if outputMode == 'Revised':
-                outDuration = f',{",".join(map(str, durations[1:]))}' if trialLicks else ''
+                outDuration = f',{",".join(map(str, durations))}' if trialLicks else ''
                 duration_line_str = f'{trialN + 1}{outDuration}\n'
             
             # Insert into the list
