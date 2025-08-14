@@ -106,7 +106,7 @@ if args.paramsFile is None:
 spoutAddress = np.arange(2, rigParams['tableTotalPositions']+2,2)
 NSpouts = len(spoutAddress)
 lickMode = rigParams['lickMode']
-outputMode = 'Revised' #rigParams['outputMode']
+outputMode = rigParams['outputMode']
 
 if paramsFile is not None:
     with open(paramsFile, 'r') as params:
