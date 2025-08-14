@@ -2,13 +2,11 @@ import os
 import sys
 import time
 import easygui
-import atexit
 import warnings
 import tkintertable
 import tkinter as tk
 import threading
 import queue
-import pandas as pd
 
 from MakeParams import readParameters
 
@@ -62,10 +60,13 @@ def read_params():
     # Lick Detection Mode
     lickMode = str([line[1] for line in paramsData if 'lickMode' in line[0]][0]).strip()
     
+    # Output File Mode
+    outputMode = str([line[1] for line in paramsData if 'outputMode' in line[0]][0]).strip()
+    
     rigParams = {'tableTotalSteps':tableTotalSteps, 'tableTotalPositions':tableTotalPositions, 'tableStepMode':tableStepMode, 'tableInitSteps':tableInitSteps, 'tableSpeed':tableSpeed,
                  'stepPin':stepPin, 'directionPin':directionPin, 'enablePin':enablePin, 'msPins':msPins, 'hallPin':hallPin, 'lickBeamPin':lickBeamPin,
                  'laserPin':laserPin, 'lickLEDPin':lickLEDPin, 'cueLEDPins':cueLEDPins, 'intanBeamPin':intanBeamPin, 'intanTrialPin':intanTrialPin, 'intanSpoutPins':intanSpoutPins,
-                 'lickMode':lickMode}
+                 'lickMode':lickMode, 'outputMode':outputMode}
     
     return rigParams
 #%%Motor control functions
