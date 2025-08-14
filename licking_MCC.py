@@ -5,9 +5,7 @@
 import os
 import time
 import numpy as np
-import pickle
 import easygui
-import json
 import sys
 import argparse
 import random
@@ -31,7 +29,6 @@ else:
     raise OSError("Unsupported platform")
 
 #%% Local py functions
-import CameraControl
 from MakeParams import readParameters
 import MCC_Setup; mcc = MCC_Setup.MCCInterface(); dav = MCC_Setup.DavRun()
 import rig_funcs as rig
@@ -250,8 +247,8 @@ else:
     SessionTimeLimit = exp_dur
     
 # Adjust to flexible inputs for LED and Camera
-useLED = isTrue(useLED)
-useCamera = isTrue(useCamera)
+if isTrue(useLED) == "True": useLED = 'True'
+if isTrue(useCamera)  == "True": useCamera = 'True'
 
 # Make empty list to save lick data
 spout_locs = ['Position {}'.format(i) for i in taste_positions]
@@ -367,6 +364,7 @@ trialTTL = [2, 1] #port CL, channel 1
 
 # Setup Camera: test settings with CamerControl.preview
 if useCamera == 'True':
+    import CameraControl
     #CameraControl.preview(mode=2)
     camMode = 2
     exposure = 63
@@ -374,6 +372,12 @@ if useCamera == 'True':
     buffer_duration = 2
     camera = CameraControl.TriggerCaptureFunctions()
     camera.setupCapture(mode = camMode, autoExposure = False, exposure = exposure, gain = gain, buffer_duration = buffer_duration, zeroTime = zeroTime, verbose=True)
+if useCamera == 'Full':
+    import CameraControl
+    exposure = 31
+    gain = 99
+    camera = CameraControl.LongCapture(outputDir=dat_folder, exposure=exposure, gain=gain)
+    camera.setupRecording(title=f'{subjID}_trial{0}', verbose= True)
     
 #%% Finish initializing the session
 # GUI setup
@@ -461,7 +465,8 @@ def runSession():
     
             #Start the camera
             if useCamera == 'True': camera.startBuffer()
-    
+            if useCamera == 'Full': camera.startTrialRecording()
+
             while ((time.time() - trial_init_time < trialTimeLimit) if trialTimeLimit is not None else True) and \
                 (time.time() - exp_init_time < SessionTimeLimit) and \
                 (len(licks[this_spout][this_trial_num]) < LickCount[trialN] if LickCount[trialN] is not None else True):
@@ -528,6 +533,13 @@ def runSession():
             if useCamera == 'True':
                 camera.cleanup()
                 camera.setupCapture(mode = camMode, autoExposure = False, exposure = exposure, gain = gain, buffer_duration = buffer_duration)
+            if useCamera == 'Full':
+                if len(licks[this_spout][this_trial_num]) >= 1:
+                    lick_time = trial_init_time
+                else:
+                    lick_time = None
+                camera.stopTrialRecording(lick_time=lick_time)
+                camera.setupRecording(title=f'{subjID}_trial{trialN+1}', verbose= False)
                 
             #Write the outputs
             #Save Trial Start time
@@ -579,6 +591,7 @@ def runSession():
         
         #Shut down camera
         if useCamera == 'True': camera.cleanup()
+        if useCamera == 'Full': camera.cleanup()
         
         #print(licks)
         for spout in spout_locs:
