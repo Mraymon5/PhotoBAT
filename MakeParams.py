@@ -319,7 +319,10 @@ def readParameters(paramsFile):
             LickCount = list([None])
         LickCount = [intOrNone(trialN) for trialN in LickCount]
         TubeSeq = [line[1].split(',') for line in paramsData if 'TubeSeq' in line[0]][0]
-        TubeSeq = [int(trialN) for trialN in TubeSeq]
+        if TubeSeq[0] == '':
+            TubeSeq = ["Rand"]*NTrials
+        else:
+            TubeSeq = [int(trialN) for trialN in TubeSeq]
         IPITimes = [line[1].split(',') for line in paramsData if 'IPITimes' in line[0]][0]
         IPITimes = [int(trialN)/1000 for trialN in IPITimes if len(trialN) != 0]
         IPImin = [int(line[1]) for line in paramsData if 'IPImin' in line[0]][0]
@@ -401,7 +404,10 @@ def readParameters(paramsFile):
         IntanPins = [line[1].split(',') for line in paramsData if 'IntanPins' in line[0]][0]
         IntanPins = [int(trialN) for trialN in IntanPins]
         TubeSeq = [line[1].split(',') for line in paramsData if 'TubeSeq' in line[0]][0]
-        TubeSeq = [int(trialN) for trialN in TubeSeq]
+        if TubeSeq[0] == '':
+            TubeSeq = ["Rand"]*NTrials
+        else:
+            TubeSeq = [int(trialN) for trialN in TubeSeq]
         IPITimes = [line[1].split(',') for line in paramsData if 'IPITimes' in line[0]][0]
         IPITimes = [int(trialN)/1000 for trialN in IPITimes if len(trialN) != 0]
         IPImin = [int(line[1]) for line in paramsData if 'IPImin' in line[0]][0]
