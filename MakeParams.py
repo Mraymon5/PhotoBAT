@@ -346,14 +346,19 @@ def readParameters(paramsFile):
         
         tastes = [stimN for stimN in Solutions if len(stimN) > 0]
         concs = [stimN for stimN in Concentrations if len(stimN) > 0]
-        if isDav:
-            taste_positions = [int(stimN+1) for stimN in range(len(Solutions)) if len(Solutions[stimN]) > 0]
-            tasteList =  [Solutions[tubeN-1] for tubeN in TubeSeq]
-            concList =  [Concentrations[tubeN-1] for tubeN in TubeSeq]
+
+        if TubeSeq[0] == "Rand":
+            tasteList = TubeSeq
+            concList = TubeSeq
         else:
-            taste_positions = [2*int(stimN+1) for stimN in range(len(Solutions)) if len(Solutions[stimN]) > 0]
-            tasteList =  [Solutions[int(tubeN/2)-1] for tubeN in TubeSeq]
-            concList =  [Concentrations[int(tubeN/2)-1] for tubeN in TubeSeq]
+            if isDav:
+                taste_positions = [int(stimN+1) for stimN in range(len(Solutions)) if len(Solutions[stimN]) > 0]
+                tasteList =  [Solutions[tubeN-1] for tubeN in TubeSeq]
+                concList =  [Concentrations[tubeN-1] for tubeN in TubeSeq]
+            else:
+                taste_positions = [2*int(stimN+1) for stimN in range(len(Solutions)) if len(Solutions[stimN]) > 0]
+                tasteList =  [Solutions[int(tubeN/2)-1] for tubeN in TubeSeq]
+                concList =  [Concentrations[int(tubeN/2)-1] for tubeN in TubeSeq]
         stimList = [f'{concList[trialN]} {tasteList[trialN]}' for trialN in range(NTrials)]
         
         #Set Lick Time List
