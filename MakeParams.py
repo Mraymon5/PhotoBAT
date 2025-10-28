@@ -41,7 +41,7 @@ def makeParams(defaultVersion="PhotoBAT"):
                                 '6: Maximum lick time per trial (10s)',
                                 '7: Maximum lick count per trial (None)',
                                 '8: Use LED indicators? (T/F/Cue)',
-                                '9: Use behavior camera? (T/F)',
+                                '9: Use behavior camera? (T/F/Full)',
                                 '10: Use laser? (False,Lick,Trial)',
                                 '11: Param file Title'
                                 ],
@@ -66,8 +66,8 @@ def makeParams(defaultVersion="PhotoBAT"):
         
         itiMax = itiMin if itiMax is None else int(itiMax)
 
-        useLED = isTrue(useLED)
-        useCamera = isTrue(useCamera)
+        if isTrue(useLED) == "True": useLED = "True"
+        if isTrue(useCamera) == "True": useCamera = "True"
         
         # Get tastes and their spout locations
         if isDav:
@@ -179,7 +179,7 @@ def makeParams(defaultVersion="PhotoBAT"):
                                 '1: Minimum inter-trial interval (30s)',
                                 '2: Maximum inter-trial interval (30s)',
                                 '3: Use LED indicators? (T/F/Cue)',
-                                '4: Use behavior camera? (T/F)',
+                                '4: Use behavior camera? (T/F/Full)',
                                 '5: Param file Title'
                                 ],
                                 [10,30,30,False,False,'params'])
@@ -195,8 +195,8 @@ def makeParams(defaultVersion="PhotoBAT"):
         useCamera = params[4] #0
         fileTitle = params[5]
         
-        useLED = isTrue(useLED)
-        useCamera = isTrue(useCamera)
+        if isTrue(useLED) == "True": useLED = "True"
+        if isTrue(useCamera) == "True": useCamera = "True"
         
         # Get tastes and their spout locations
         bot_pos = ['']*8

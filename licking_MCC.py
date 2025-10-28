@@ -5,9 +5,7 @@
 import os
 import time
 import numpy as np
-import pickle
 import easygui
-import json
 import sys
 import argparse
 import random
@@ -31,7 +29,6 @@ else:
     raise OSError("Unsupported platform")
 
 #%% Local py functions
-import CameraControl
 from MakeParams import readParameters
 import MCC_Setup; mcc = MCC_Setup.MCCInterface(); dav = MCC_Setup.DavRun()
 import rig_funcs as rig
@@ -100,6 +97,9 @@ if args.paramsFile is None:
     paramsFile = easygui.fileopenbox(msg="Select a params file, or cancel for manual entry", default=paramsFolder)
 
 # Setup trial parameters
+rigParams = rig.read_params()
+outputMode = rigParams['outputMode']
+
 if paramsFile is not None:
     #Setup Messages
     trialMsg = ''
@@ -265,8 +265,9 @@ else:
     SessionTimeLimit = exp_dur
     
 # Adjust to flexible inputs for LED and Camera
-useLED = isTrue(useLED)
-useCamera = isTrue(useCamera)
+if isTrue(useLED) == "True": useLED = 'True'
+if isTrue(useCamera)  == "True": useCamera = 'True'
+useLaser = "False" #TODO: incorporate Opto functions
 
 # Make empty list to save lick data
 spout_locs = ['Position {}'.format(i) for i in taste_positions]
@@ -283,13 +284,16 @@ outFile = os.path.join(dat_folder, "{}{}{}.txt".format(date,subjID,fileTail))
 outVersion = 'Version #, 5.90\n'    
 outSysID = 'System ID, 1\n'
 outDate = f'Start Date, {time.strftime("%Y/%m/%d")}\n'
-outTime = f"Start Time, {datetime.now().strftime('%H:%M:%S.%f')[:-3]}\n"
+outTime = f"Start Time, {datetime.now().strftime('%H:%M:%S.%f')[:-3]}\n"; sessionStartTime = time.time()
 outID = f'Animal ID, {subjID}\n'
 outCondition = 'Condition, \n'
 outWait = f'Max Wait for first Lick is, {MaxWaitTime[0]}\n'
 outRetries = 'Max Retries / Presentation, 0\n'
 outNumPres = f'Max Number Presentations, {NTrials}\n'
-outHeadings = 'PRESENTATION,TUBE,CONCENTRATION,SOLUTION,IPI,LENGTH,LICKS,Latency,Retries\n\n'
+if outputMode == 'Revised':
+    outHeadings = 'PRESENTATION,TUBE,CONCENTRATION,SOLUTION,IPI,LENGTH,LICKS,Latency,Retries,Laser,SinceStart\n\n\n'
+else:
+    outHeadings = 'PRESENTATION,TUBE,CONCENTRATION,SOLUTION,IPI,LENGTH,LICKS,Latency,Retries\n\n'
 outLickTime = f'Lick time limits are, {LickTime}\n'
 outLickCount = f'Lick count limits are, {LickCount}\n'
 outIPI = f'IPIs are, {IPITimes}\n'
@@ -382,6 +386,7 @@ trialTTL = [2, 1] #port CL, channel 1
 
 # Setup Camera: test settings with CamerControl.preview
 if useCamera == 'True':
+    import CameraControl
     #CameraControl.preview(mode=2)
     camMode = 2
     exposure = 63
@@ -389,6 +394,12 @@ if useCamera == 'True':
     buffer_duration = 2
     camera = CameraControl.TriggerCaptureFunctions()
     camera.setupCapture(mode = camMode, autoExposure = False, exposure = exposure, gain = gain, buffer_duration = buffer_duration, zeroTime = zeroTime, verbose=True)
+if useCamera == 'Full':
+    import CameraControl
+    exposure = 31
+    gain = 99
+    camera = CameraControl.LongCapture(outputDir=dat_folder, exposure=exposure, gain=gain)
+    camera.setupRecording(title=f'{subjID}_trial{0}', verbose= True)
     
 #%% Finish initializing the session
 # GUI setup
@@ -452,6 +463,7 @@ def runSession():
             # empty list to save licks for each trial
             this_spout = 'Position {}'.format(spoutN)
             licks[this_spout].append([])
+            durations = []
             filteredLicks = 0
             # get the number of current trial for that particular spout
             this_trial_num = len(licks[this_spout]) - 1 
@@ -476,7 +488,8 @@ def runSession():
     
             #Start the camera
             if useCamera == 'True': camera.startBuffer()
-    
+            if useCamera == 'Full': camera.startTrialRecording()
+
             while ((time.time() - trial_init_time < trialTimeLimit) if trialTimeLimit is not None else True) and \
                 (time.time() - exp_init_time < SessionTimeLimit) and \
                 (len(licks[this_spout][this_trial_num]) < LickCount[trialN] if LickCount[trialN] is not None else True):
@@ -502,6 +515,7 @@ def runSession():
     
                     if (off_lick - new_lick > 0.02) and (off_lick - new_lick < 0.12): # to avoid noise (from motor)- induced licks TODO: See if these limits can be tuned tighter. Also, add in an output of the number of filtered licks
                         licks[this_spout][this_trial_num].append(round((new_lick-last_lick)*1000))
+                        durations.append(round((off_lick - new_lick)*1000))
                         rig.lickQueue.put(len(licks[this_spout][this_trial_num])) #Send new lick to GUI
                         if len(licks[this_spout][this_trial_num]) == 1:
                             trial_init_time = new_lick #if lick happens, reset the trial_init time
@@ -543,6 +557,13 @@ def runSession():
             if useCamera == 'True':
                 camera.cleanup()
                 camera.setupCapture(mode = camMode, autoExposure = False, exposure = exposure, gain = gain, buffer_duration = buffer_duration)
+            if useCamera == 'Full':
+                if len(licks[this_spout][this_trial_num]) >= 1:
+                    lick_time = trial_init_time
+                else:
+                    lick_time = None
+                camera.stopTrialRecording(lick_time=lick_time)
+                camera.setupRecording(title=f'{subjID}_trial{trialN+1}', verbose= False)
                 
             #Write the outputs
             #Save Trial Start time
@@ -555,14 +576,35 @@ def runSession():
             else:
                 latency = trialLicks[0]
             timeTemp = [LickTime[trialN] if LickTime[trialN] is not None else 'None'][0]
-            trialLine = f"{trialN+1:>4},{spoutN:>4},{Concentrations[spoutN-1]:>{padConc}},{Solutions[spoutN-1]:>{padStim}},{IPITimes[trialN]:>7},{timeTemp:>7},{NLicks:>7},{latency:>{padLat}},{0:>7}\n"  # Left-aligned, padded with spaces
-            with open(outFile, 'r') as outputFile:
-                outputData = outputFile.readlines()
-                outputData.insert((skipLines+trialN),trialLine)
-            with open(outFile, 'w') as outputFile:
-                outputFile.writelines(outputData)
-                outLicks = f',{",".join(map(str, trialLicks[1:]))}' if len(trialLicks) > 0 else ''
-                outputFile.write(f'{trialN + 1}{outLicks}\n')
+            if outputMode == 'Revised':
+                trialLine = f"{trialN+1:>4},{spoutN:>4},{Concentrations[taste_idx]:>{padConc}},{Solutions[taste_idx]:>{padStim}},{IPITimes[trialN]:>7},{timeTemp:>7},{NLicks:>7},{latency:>{padLat}},{0:>7},{useLaser[trialN]:>7},{round((trial_start_time-sessionStartTime)*1000)}\n"  # Left-aligned, padded with spaces
+            else:
+                trialLine = f"{trialN+1:>4},{spoutN:>4},{Concentrations[taste_idx]:>{padConc}},{Solutions[taste_idx]:>{padStim}},{IPITimes[trialN]:>7},{timeTemp:>7},{NLicks:>7},{latency:>{padLat}},{0:>7}"  # Left-aligned, padded with spaces                
+
+            #Open the output file and read the current text
+            with open(outFile, 'r') as f:
+                outputData = f.readlines()
+            
+            # Build the strings
+            trial_line_str = trialLine
+            outLicks = f',{",".join(map(str, trialLicks[1:]))}' if trialLicks else ''
+            licks_line_str = f'{trialN + 1}{outLicks}\n'
+            if outputMode == 'Revised':
+                outDuration = f',{",".join(map(str, durations))}' if trialLicks else ''
+                duration_line_str = f'{trialN + 1}{outDuration}\n'
+            
+            # Insert into the list
+            trial_pos    = skipLines + trialN
+            licks_pos    = skipLines + (trialN * 2) + 1  # +1 for one blank line
+            duration_pos = skipLines + (trialN * 3) + 2  # +2 for the two blank lines
+
+            if outputMode == 'Revised': outputData.insert(duration_pos, duration_line_str) #insert duration line if desired
+            outputData.insert(licks_pos, licks_line_str) #insert ILI line
+            outputData.insert(trial_pos, trial_line_str) #insert trial data line
+            
+            # Write output data back to the .txt file
+            with open(outFile, 'w') as f:
+                f.writelines(outputData)
     
             # Push trial information to the GUI
             rig.trialQueue.put([trialN,NLicks,latency])
@@ -594,6 +636,7 @@ def runSession():
         
         #Shut down camera
         if useCamera == 'True': camera.cleanup()
+        if useCamera == 'Full': camera.cleanup()
         
         #print(licks)
         for spout in spout_locs:
