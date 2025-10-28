@@ -108,6 +108,12 @@ NSpouts = len(spoutAddress)
 lickMode = rigParams['lickMode']
 
 if paramsFile is not None:
+    #Setup Messages
+    trialMsg = ''
+    IPIMsg = ''
+    licktimeMsg = ''
+    waitMsg = ''
+
     with open(paramsFile, 'r') as params:
         paramsData = params.readlines()
     paramsData = [line.rstrip('\n') for line in paramsData]
@@ -128,7 +134,18 @@ if paramsFile is not None:
         LickCount = list([None])
     LickCount = [intOrNone(trialN) for trialN in LickCount]
     TubeSeq = [line[1].split(',') for line in paramsData if 'TubeSeq' in line[0]][0]
-    TubeSeq = [int(trialN) for trialN in TubeSeq]
+    if TubeSeq[0] == '': #If TubeSeq is empty, fill it
+        Positions = np.arange(2,(len(Solutions)*2)+2,2)[[posN != '' for posN in Solutions]]
+        NBlocks = round(np.ceil(NTrials/len(Positions)))
+        SeqTemp = []
+        for BLockN in range(NBlocks):
+            SeqTemp.extend(random.sample(list(Positions), len(Positions)))
+        TubeSeq = SeqTemp[:NTrials]
+        trialMsg = '-TubeSeq is empty; generating random sequence\n'
+        randSeq = TubeSeq
+    else:
+        TubeSeq = [int(trialN) for trialN in TubeSeq]
+        randSeq = None
     IPITimes = [line[1].split(',') for line in paramsData if 'IPITimes' in line[0]][0]
     IPITimes = [int(trialN)/1000 for trialN in IPITimes if len(trialN) != 0]
     IPImin = [int(line[1]) for line in paramsData if 'IPImin' in line[0]][0]
@@ -152,13 +169,7 @@ if paramsFile is not None:
     tastes = [stimN for stimN in Solutions if len(stimN) > 0]
     taste_positions = [2*int(stimN+1) for stimN in range(len(Solutions)) if len(Solutions[stimN]) > 0]
     concs = [stimN for stimN in Concentrations if len(stimN) > 0]
-    
-    #Setup Messages
-    trialMsg = ''
-    IPIMsg = ''
-    licktimeMsg = ''
-    waitMsg = ''
-    
+      
     #Set Lick Time List
     if len(LickTime) < NTrials:
         LickTime = (LickTime * -(-NTrials//len(LickTime)))[:NTrials]
@@ -432,6 +443,8 @@ def runSession():
         cur_pos = rest_pos
 
         print('\n=== Press Ctrl-C to abort session ===\n')
+
+        # Wait for Session to Begin, triggered by GUI
         while rig.AbortEvent.is_set():
             try:
                 time.sleep(0.001)
@@ -720,4 +733,4 @@ def runSession():
 #%%
 sessionThread = threading.Thread(target=runSession,daemon=False)
 sessionThread.start()
-rig.TrialGui(paramsFile, outputFile, subjID)
+rig.TrialGui(paramsFile, outputFile, subjID, randSeq = randSeq)
