@@ -291,7 +291,7 @@ def makeParams(defaultVersion="PhotoBAT"):
         
         return outFile
 
-def readParameters(paramsFile):
+def readParameters(paramsFile, randSeq = None):
     try:
         with open(paramsFile, 'r') as params:
             paramsData = params.readlines()
@@ -319,8 +319,16 @@ def readParameters(paramsFile):
             LickCount = list([None])
         LickCount = [intOrNone(trialN) for trialN in LickCount]
         TubeSeq = [line[1].split(',') for line in paramsData if 'TubeSeq' in line[0]][0]
-        if TubeSeq[0] == '':
-            TubeSeq = ["Rand"]*NTrials
+        if randSeq is not None:
+            TubeSeq = randSeq
+        elif TubeSeq[0] == '': #If TubeSeq is empty, fill it
+            Positions = np.arange(2,(len(Solutions)*2)+2,2)[[posN != '' for posN in Solutions]]
+            NBlocks = round(np.ceil(NTrials/len(Positions)))
+            SeqTemp = []
+            for BLockN in range(NBlocks):
+                SeqTemp.extend(random.sample(list(Positions), len(Positions)))
+            TubeSeq = SeqTemp[:NTrials]
+            easygui.msgbox(msg="Tube sequence is empty. A random sequence will be generated when running session. The sequence shown here is for example purposes only.", title="Example Sequence")
         else:
             TubeSeq = [int(trialN) for trialN in TubeSeq]
         IPITimes = [line[1].split(',') for line in paramsData if 'IPITimes' in line[0]][0]
