@@ -291,7 +291,7 @@ def makeParams(defaultVersion="PhotoBAT"):
         
         return outFile
 
-def readParameters(paramsFile):
+def readParameters(paramsFile, randSeq = None):
     try:
         with open(paramsFile, 'r') as params:
             paramsData = params.readlines()
@@ -319,7 +319,18 @@ def readParameters(paramsFile):
             LickCount = list([None])
         LickCount = [intOrNone(trialN) for trialN in LickCount]
         TubeSeq = [line[1].split(',') for line in paramsData if 'TubeSeq' in line[0]][0]
-        TubeSeq = [int(trialN) for trialN in TubeSeq]
+        if randSeq is not None:
+            TubeSeq = randSeq
+        elif TubeSeq[0] == '': #If TubeSeq is empty, fill it
+            Positions = np.arange(2,(len(Solutions)*2)+2,2)[[posN != '' for posN in Solutions]]
+            NBlocks = round(np.ceil(NTrials/len(Positions)))
+            SeqTemp = []
+            for BLockN in range(NBlocks):
+                SeqTemp.extend(random.sample(list(Positions), len(Positions)))
+            TubeSeq = SeqTemp[:NTrials]
+            easygui.msgbox(msg="Tube sequence is empty. A random sequence will be generated when running session. The sequence shown here is for example purposes only.", title="Example Sequence")
+        else:
+            TubeSeq = [int(trialN) for trialN in TubeSeq]
         IPITimes = [line[1].split(',') for line in paramsData if 'IPITimes' in line[0]][0]
         IPITimes = [int(trialN)/1000 for trialN in IPITimes if len(trialN) != 0]
         IPImin = [int(line[1]) for line in paramsData if 'IPImin' in line[0]][0]
@@ -343,14 +354,19 @@ def readParameters(paramsFile):
         
         tastes = [stimN for stimN in Solutions if len(stimN) > 0]
         concs = [stimN for stimN in Concentrations if len(stimN) > 0]
-        if isDav:
-            taste_positions = [int(stimN+1) for stimN in range(len(Solutions)) if len(Solutions[stimN]) > 0]
-            tasteList =  [Solutions[tubeN-1] for tubeN in TubeSeq]
-            concList =  [Concentrations[tubeN-1] for tubeN in TubeSeq]
+
+        if TubeSeq[0] == "Rand":
+            tasteList = TubeSeq
+            concList = TubeSeq
         else:
-            taste_positions = [2*int(stimN+1) for stimN in range(len(Solutions)) if len(Solutions[stimN]) > 0]
-            tasteList =  [Solutions[int(tubeN/2)-1] for tubeN in TubeSeq]
-            concList =  [Concentrations[int(tubeN/2)-1] for tubeN in TubeSeq]
+            if isDav:
+                taste_positions = [int(stimN+1) for stimN in range(len(Solutions)) if len(Solutions[stimN]) > 0]
+                tasteList =  [Solutions[tubeN-1] for tubeN in TubeSeq]
+                concList =  [Concentrations[tubeN-1] for tubeN in TubeSeq]
+            else:
+                taste_positions = [2*int(stimN+1) for stimN in range(len(Solutions)) if len(Solutions[stimN]) > 0]
+                tasteList =  [Solutions[int(tubeN/2)-1] for tubeN in TubeSeq]
+                concList =  [Concentrations[int(tubeN/2)-1] for tubeN in TubeSeq]
         stimList = [f'{concList[trialN]} {tasteList[trialN]}' for trialN in range(NTrials)]
         
         #Set Lick Time List
@@ -401,7 +417,10 @@ def readParameters(paramsFile):
         IntanPins = [line[1].split(',') for line in paramsData if 'IntanPins' in line[0]][0]
         IntanPins = [int(trialN) for trialN in IntanPins]
         TubeSeq = [line[1].split(',') for line in paramsData if 'TubeSeq' in line[0]][0]
-        TubeSeq = [int(trialN) for trialN in TubeSeq]
+        if TubeSeq[0] == '':
+            TubeSeq = ["Rand"]*NTrials
+        else:
+            TubeSeq = [int(trialN) for trialN in TubeSeq]
         IPITimes = [line[1].split(',') for line in paramsData if 'IPITimes' in line[0]][0]
         IPITimes = [int(trialN)/1000 for trialN in IPITimes if len(trialN) != 0]
         IPImin = [int(line[1]) for line in paramsData if 'IPImin' in line[0]][0]

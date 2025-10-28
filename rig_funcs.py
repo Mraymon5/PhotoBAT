@@ -261,7 +261,7 @@ if Debug: #Debugging
     outputFile = '/home/ramartin/PhotoBAT/data/20250204/20250204None.txt'
     
 
-def TrialGui(paramsFile, outputFile, subjID):
+def TrialGui(paramsFile, outputFile, subjID, randSeq = None):
     #Make tables that don't allow editing
     class passiveTableCanvas(tkintertable.TableCanvas):
         def __init__(self, master=None, *args, **kw):
@@ -363,7 +363,7 @@ def TrialGui(paramsFile, outputFile, subjID):
     else:
         isChild = True
         trialRoot = tk._default_root  # Use the existing root
-    version, paramsData = readParameters(paramsFile)
+    version, paramsData = readParameters(paramsFile, randSeq = randSeq)
     sessionGUI = tk.Toplevel(trialRoot)
     sessionGUI.title(f"BAT Session: {subjID}")
     sessionGUI.protocol("WM_DELETE_WINDOW", on_close)
