@@ -135,8 +135,10 @@ if paramsFile is not None:
             SeqTemp.extend(random.sample(list(Positions), len(Positions)))
         TubeSeq = SeqTemp[:NTrials]
         trialMsg = '-TubeSeq is empty; generating random sequence\n'
+        randSeq = TubeSeq
     else:
         TubeSeq = [int(trialN) for trialN in TubeSeq]
+        randSeq = None
     IPITimes = [line[1].split(',') for line in paramsData if 'IPITimes' in line[0]][0]
     IPITimes = [int(trialN)/1000 for trialN in IPITimes if len(trialN) != 0]
     IPImin = [int(line[1]) for line in paramsData if 'IPImin' in line[0]][0]
@@ -397,7 +399,7 @@ rig.TrialEvent.set() #Set the trial event, which will be turned off to start the
 rig.cleanRun.clear()
 
 def runSession():
-    #Final Check
+    #Final Check, wait for GUI
     while rig.AbortEvent.is_set():
         try:
             time.sleep(0.001)
@@ -609,4 +611,4 @@ def runSession():
 #%%
 sessionThread = threading.Thread(target=runSession,daemon=False)
 sessionThread.start()
-rig.TrialGui(paramsFile, outputFile, subjID)
+rig.TrialGui(paramsFile, outputFile, subjID, randSeq = randSeq)
