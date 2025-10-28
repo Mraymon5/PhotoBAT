@@ -29,23 +29,25 @@ conda activate MCC
 ```
 Inside the new MCC environment, you can run the following script to install all the rest of the packages required to run the programs:
 ```
-conda install git
+conda install git #If you don't already have git
 git clone https://github.com/Mraymon5/PhotoBAT.git
 bash .\PhotoBAT\MCC_install.sh
 ```
 If everything installs successfully, you should be able to start using the PhotoBAT programs.
-A good place to start is with `MCC_Test.py`: this script allows for testing and calibrating the hardware interface.
+
+You should be able to run different functional scripts independently, but all of the functions `PhotoBAT` are accessible through the central GUI, via
 ```
-python .\PhotoBAT\MCC_Test.py
+python .\PhotoBAT\MCC_Main_Menu.py
 ```
 
-To create Parameters files for running actual lick protocols, you can use `MakeParams.py`:
-```
-python .\PhotoBAT\MakeParams.py
-```
-You can also find the parameters files in the `/PhotoBAT/params/` folder, and edit them manually if you'd like. This offers some additional functionality, in that you can set different parameters for each individual trail, rather than having fixed values for all trials in a session.
+From that GUI, likely first steps would be:
+- Selecting the correct hardware platform
+- Setting a path for the output data folder
+- Calibrating the hardware
 
-Finally, to run the program itself, you can run:
-```
-python .\PhotoBAT\licking_MCC.py
-```
+After completing those steps, it should be possible to build session parameter file and run sessions.
+
+
+
+For the DavisSplice hardware designs, see:
+https://github.com/Mraymon5/DavisSplice

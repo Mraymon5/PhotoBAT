@@ -108,6 +108,12 @@ NSpouts = len(spoutAddress)
 lickMode = rigParams['lickMode']
 
 if paramsFile is not None:
+    #Setup Messages
+    trialMsg = ''
+    IPIMsg = ''
+    licktimeMsg = ''
+    waitMsg = ''
+
     with open(paramsFile, 'r') as params:
         paramsData = params.readlines()
     paramsData = [line.rstrip('\n') for line in paramsData]
@@ -128,7 +134,18 @@ if paramsFile is not None:
         LickCount = list([None])
     LickCount = [intOrNone(trialN) for trialN in LickCount]
     TubeSeq = [line[1].split(',') for line in paramsData if 'TubeSeq' in line[0]][0]
-    TubeSeq = [int(trialN) for trialN in TubeSeq]
+    if TubeSeq[0] == '': #If TubeSeq is empty, fill it
+        Positions = np.arange(2,(len(Solutions)*2)+2,2)[[posN != '' for posN in Solutions]]
+        NBlocks = round(np.ceil(NTrials/len(Positions)))
+        SeqTemp = []
+        for BLockN in range(NBlocks):
+            SeqTemp.extend(random.sample(list(Positions), len(Positions)))
+        TubeSeq = SeqTemp[:NTrials]
+        trialMsg = '-TubeSeq is empty; generating random sequence\n'
+        randSeq = TubeSeq
+    else:
+        TubeSeq = [int(trialN) for trialN in TubeSeq]
+        randSeq = None
     IPITimes = [line[1].split(',') for line in paramsData if 'IPITimes' in line[0]][0]
     IPITimes = [int(trialN)/1000 for trialN in IPITimes if len(trialN) != 0]
     IPImin = [int(line[1]) for line in paramsData if 'IPImin' in line[0]][0]
@@ -152,13 +169,7 @@ if paramsFile is not None:
     tastes = [stimN for stimN in Solutions if len(stimN) > 0]
     taste_positions = [2*int(stimN+1) for stimN in range(len(Solutions)) if len(Solutions[stimN]) > 0]
     concs = [stimN for stimN in Concentrations if len(stimN) > 0]
-    
-    #Setup Messages
-    trialMsg = ''
-    IPIMsg = ''
-    licktimeMsg = ''
-    waitMsg = ''
-    
+      
     #Set Lick Time List
     if len(LickTime) < NTrials:
         LickTime = (LickTime * -(-NTrials//len(LickTime)))[:NTrials]
@@ -274,8 +285,8 @@ else:
     SessionTimeLimit = exp_dur
     
 # Adjust to flexible inputs for LED and Camera
-useLED = isTrue(useLED)
-useCamera = isTrue(useCamera)
+if isTrue(useLED) == "True": useLED = 'True'
+if isTrue(useCamera)  == "True": useCamera = 'True'
 
 # Make empty list to save lick data
 spout_locs = ['Position {}'.format(i) for i in taste_positions]
@@ -390,6 +401,15 @@ if useCamera == 'True':
     buffer_duration = 2
     camera = CameraControl.TriggerCaptureFunctions()
     camera.setupCapture(mode = camMode, autoExposure = False, exposure = exposure, gain = gain, buffer_duration = buffer_duration, zeroTime = zeroTime, verbose=True)
+if useCamera == 'Full':
+    import CameraControl
+    exposure = 31
+    gain = 99
+    camera = CameraControl.LongCapture(outputDir=dat_folder, exposure=exposure, gain=gain)
+    camera.setupRecording(title=f'{subjID}_trial{0}', verbose= True)
+
+    
+    
     
 #%% Finish initializing the session
 #Final Check
@@ -423,6 +443,8 @@ def runSession():
         cur_pos = rest_pos
 
         print('\n=== Press Ctrl-C to abort session ===\n')
+
+        # Wait for Session to Begin, triggered by GUI
         while rig.AbortEvent.is_set():
             try:
                 time.sleep(0.001)
@@ -464,6 +486,7 @@ def runSession():
             
             #Start the camera
             if useCamera == 'True': camera.startBuffer()
+            if useCamera == 'Full': camera.startTrialRecording()
 
             # rotate motor to move spout outside licking hole
             direction = Motor.CLOCKWISE if turn_dir == -1 else Motor.ANTICLOCKWISE
@@ -623,6 +646,13 @@ def runSession():
             if useCamera == 'True':
                 camera.cleanup()
                 camera.setupCapture(mode = camMode, autoExposure = False, exposure = exposure, gain = gain, buffer_duration = buffer_duration)
+            if useCamera == 'Full':
+                if len(licks[this_spout][this_trial_num]) >= 1:
+                    lick_time = trial_init_time
+                else:
+                    lick_time = None
+                camera.stopTrialRecording(lick_time=lick_time)
+                camera.setupRecording(title=f'{subjID}_trial{trialN+1}', verbose= False)
                 
             #Write the outputs
             #Save Trial Start time
@@ -685,6 +715,7 @@ def runSession():
     
         #Shut down camera
         if useCamera == 'True': camera.cleanup()
+        if useCamera == 'Full': camera.cleanup()
         
         #print(licks)
         for spout in spout_locs:
@@ -702,4 +733,4 @@ def runSession():
 #%%
 sessionThread = threading.Thread(target=runSession,daemon=False)
 sessionThread.start()
-rig.TrialGui(paramsFile, outputFile, subjID)
+rig.TrialGui(paramsFile, outputFile, subjID, randSeq = randSeq)
